@@ -6,6 +6,7 @@ import { MetaAdsPage } from '@/pages/MetaAds';
 import { FunilPage } from '@/pages/MetaAds/FunilPage';
 import { MeioFunilPage } from '@/pages/MetaAds/MeioFunilPage';
 import { CriativosPage } from '@/pages/MetaAds/CriativosPage';
+import { DocsPage } from '@/pages/Docs/DocsPage';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/meta-ads/funil" element={<FunilPage />} />
             <Route path="/meta-ads/meio-funil" element={<MeioFunilPage />} />
             <Route path="/meta-ads/criativos" element={<CriativosPage />} />
+            <Route path="/docs" element={<DocsPage />} />
             <Route path="*" element={<Navigate to="/meta-ads/geral" replace />} />
           </Routes>
         </Layout>
