@@ -183,73 +183,76 @@ const CRM_HEADERS = [
   'nome','email','celular','cidade','estado',
   'disponibilidade','mqStatus','page','source','campaign',
   'conjunto','criativo','focoCaptacao','canalTipo','estagio',
-  'statusPipeline','motivoPerda','valor',
+  'statusPipeline','motivoPerda','valor','stageHistory',
 ];
 
 function parseCrmSheet(values) {
   if (!values || values.length < 2) return [];
-  const [header, ...rows] = values;
+  const [, ...rows] = values;
   return rows.map(row => {
     const obj = {};
     CRM_HEADERS.forEach((k, i) => { obj[k] = row[i] ?? ''; });
     obj.conversionNum = parseInt(obj.conversionNum, 10) || 1;
+    try { obj.stageHistory = JSON.parse(obj.stageHistory || '[]'); } catch { obj.stageHistory = []; }
     return obj;
   });
 }
 
-function readStoreFile() {
-  // Try writable /tmp first (most recent sync), then fall back to deployed file
+// Write history to /tmp so the history endpoint works after sync
+function writeHistory(store) {
+  try {
+    fs.writeFileSync(CRM_STORE_WRITE, JSON.stringify({
+      lastSync: store.lastSync,
+      history:  store.history,
+    }));
+  } catch {}
+}
+
+// Read history from /tmp → committed file
+function readHistory() {
   for (const p of [CRM_STORE_WRITE, CRM_STORE_READ]) {
     try {
-      const raw = fs.readFileSync(p, 'utf8');
-      return JSON.parse(raw);
+      const s = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (s.history) return s;
     } catch {}
   }
   return null;
 }
 
-function writeStoreFile(store) {
-  try {
-    fs.writeFileSync(CRM_STORE_WRITE, JSON.stringify(store, null, 2));
-  } catch (e) {
-    console.error('[crm] writeStoreFile error:', e.message);
-  }
-}
-
+// CRM leads: always read from Google Sheets CRM_PAINEL (persistent across containers)
+// In-memory cache for performance within warm invocations
 async function loadCrmLeads() {
   const now = Date.now();
   if (crmCache && now - crmCacheAt < CRM_CACHE_TTL) return crmCache;
 
-  // Try local JSON files first (fastest)
-  const store = readStoreFile();
-  if (store) {
-    const data = store.crm
-      ? { lastSync: store.lastSync, ...store.crm }
-      : { lastSync: store.lastSync, leads: store.leads, totalLeads: store.leads?.length, uniqueLeads: store.uniqueLeads };
-    crmCache   = data;
-    crmCacheAt = now;
-    return data;
-  }
-
-  // Fall back to Google Sheets
-  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:W`);
+  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:X`);
   const leads = parseCrmSheet(resp.values);
-  crmCache   = { lastSync: null, leads, totalLeads: leads.length, uniqueLeads: new Set(leads.map(l => l.leadId)).size };
+  crmCache   = {
+    lastSync:    crmCache?.lastSync ?? null, // preserved from last sync call
+    leads,
+    totalLeads:  leads.length,
+    uniqueLeads: new Set(leads.map(l => l.leadId)).size,
+  };
   crmCacheAt = now;
   return crmCache;
 }
 
-async function patchCrmRowInSheet(rowId, fields) {
-  // Find the row in the sheet by scanning column A
+async function patchCrmRowInSheet(rowId, fields, stageHistory) {
   const resp = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:A`);
   const col  = resp.values || [];
   const rowIndex = col.findIndex(r => r[0] === rowId);
-  if (rowIndex < 1) return; // 0 = header, not found
+  if (rowIndex < 1) return;
 
-  const sheetRow = rowIndex + 1; // 1-indexed
-  // S=statusPipeline, T=motivoPerda, U=valor  (cols 19,20,21 = S,T,U)
-  const range  = `${CRM_PAINEL_TAB}!T${sheetRow}:W${sheetRow}`;
-  const values = [[fields.estagio ?? '', fields.statusPipeline ?? '', fields.motivoPerda ?? '', fields.valor ?? '']];
+  const sheetRow = rowIndex + 1;
+  // T=estagio, U=statusPipeline, V=motivoPerda, W=valor, X=stageHistory
+  const range  = `${CRM_PAINEL_TAB}!T${sheetRow}:X${sheetRow}`;
+  const values = [[
+    fields.estagio        ?? '',
+    fields.statusPipeline ?? '',
+    fields.motivoPerda    ?? '',
+    fields.valor          ?? '',
+    JSON.stringify(stageHistory || []),
+  ]];
   await sheetsUpdate(CRM_SHEET_ID, range, values);
 }
 
@@ -267,7 +270,7 @@ app.get('/api/crm/leads', async (req, res) => {
 // GET /api/crm/history — full Leads Franquia history (all dates, original columns)
 app.get('/api/crm/history', async (req, res) => {
   try {
-    const store = readStoreFile();
+    const store = readHistory();
     if (!store?.history) {
       return res.status(503).json({ error: 'Histórico não disponível. Execute crm-sync primeiro.' });
     }
@@ -284,16 +287,9 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
   const { statusPipeline, motivoPerda, valor, estagio } = req.body;
 
   try {
-    // Update local JSON
-    let store;
-    try {
-      store = JSON.parse(fs.readFileSync(CRM_STORE, 'utf8'));
-    } catch {
-      return res.status(503).json({ error: 'CRM store not found. Run crm-sync first.' });
-    }
-
-    const leads = store.crm ? store.crm.leads : store.leads;
-    const lead = leads.find(l => l.rowId === rowId);
+    // Find lead in in-memory cache (avoids a round-trip to Sheets)
+    const crmData = await loadCrmLeads();
+    const lead = crmData.leads.find(l => l.rowId === rowId);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
     // Track stage changes in stageHistory
@@ -313,16 +309,16 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
     if (motivoPerda    !== undefined) lead.motivoPerda    = motivoPerda;
     if (valor          !== undefined) lead.valor          = valor;
 
-    writeStoreFile(store);
-
-    // Invalidate cache
+    // Invalidate cache so next GET re-reads from Sheets with updated data
     crmCache   = null;
     crmCacheAt = 0;
 
-    // Update Google Sheets (fire and forget, don't block response)
-    patchCrmRowInSheet(rowId, { estagio, statusPipeline, motivoPerda, valor }).catch(e =>
-      console.error('[crm] Sheets patch error:', e.message)
-    );
+    // Update Google Sheets — includes stageHistory in col X (fire and forget)
+    patchCrmRowInSheet(
+      rowId,
+      { estagio, statusPipeline, motivoPerda, valor },
+      lead.stageHistory
+    ).catch(e => console.error('[crm] Sheets patch error:', e.message));
 
     res.json({ ok: true, lead });
   } catch (err) {
@@ -334,24 +330,28 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
 // POST /api/crm/sync — trigger manual sync (runs inline, works on Vercel)
 app.post('/api/crm/sync', async (req, res) => {
   try {
-    // Pass existing leads so stageHistory is preserved across syncs
-    const existing = readStoreFile();
-    const existingLeads = existing?.crm?.leads || [];
+    // Load existing leads from cache or Sheets to preserve stageHistory
+    const existing = crmCache?.leads || (await loadCrmLeads()).leads || [];
 
-    const store = await runSync(existingLeads);
+    const store = await runSync(existing);
 
-    // Persist result
-    writeStoreFile(store);
+    // Write history to /tmp (history page reads from here or committed file)
+    writeHistory(store);
 
-    // Invalidate cache
-    crmCache   = null;
-    crmCacheAt = 0;
+    // Prime in-memory cache with fresh data — avoids extra Sheets read
+    crmCache = {
+      lastSync:    store.lastSync,
+      leads:       store.crm.leads,
+      totalLeads:  store.crm.totalLeads,
+      uniqueLeads: store.crm.uniqueLeads,
+    };
+    crmCacheAt = Date.now();
 
     res.json({
       ok: true,
-      totalLeads: store.crm.totalLeads,
+      totalLeads:  store.crm.totalLeads,
       uniqueLeads: store.crm.uniqueLeads,
-      lastSync: store.lastSync,
+      lastSync:    store.lastSync,
     });
   } catch (err) {
     console.error('[crm] Sync error:', err.message);

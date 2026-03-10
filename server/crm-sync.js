@@ -177,15 +177,21 @@ async function ensureTab(token, sheetId, tabName) {
   console.log(`[crm-sync] Aba "${tabName}" criada.`);
 }
 
-// ── CRM_PAINEL columns ──────────────────────────────────────────
+// ── CRM_PAINEL columns (A–X, 24 cols) ──────────────────────────
+// stageHistory stored as JSON string in col X so it survives cold starts
 const CRM_HEADERS = [
   'rowId','leadId','conversionNum','data','hora',
   'nome','email','celular','cidade','estado',
   'disponibilidade','mqStatus','page','source','campaign',
   'conjunto','criativo','focoCaptacao','canalTipo','estagio',
-  'statusPipeline','motivoPerda','valor',
+  'statusPipeline','motivoPerda','valor','stageHistory',
 ];
-function rowToArray(r) { return CRM_HEADERS.map(k => String(r[k] ?? '')); }
+function rowToArray(r) {
+  return CRM_HEADERS.map(k => {
+    if (k === 'stageHistory') return JSON.stringify(r[k] || []);
+    return String(r[k] ?? '');
+  });
+}
 
 // ── Date helpers ────────────────────────────────────────────────
 function parseDate(ddmmyyyy) {
@@ -393,9 +399,9 @@ export async function runSync(existingLeads = []) {
   crmLeads.forEach(l => { sc[l.estagio] = (sc[l.estagio]||0)+1; });
   console.log(`[crm-sync] ${historyLeads.length} histórico, ${crmLeads.length} CRM | Estágios:`, JSON.stringify(sc));
 
-  // 9. Write CRM_PAINEL
+  // 9. Write CRM_PAINEL (A:X — 24 cols including stageHistory)
   await ensureTab(token, CRM_SHEET_ID, CRM_PAINEL_TAB);
-  await sheetsClear(token, CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:W`);
+  await sheetsClear(token, CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:X`);
   await sheetsPut(token, CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A1`, [CRM_HEADERS, ...crmLeads.map(rowToArray)]);
   console.log(`[crm-sync] ${crmLeads.length} linhas escritas em "${CRM_PAINEL_TAB}"`);
 
