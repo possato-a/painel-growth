@@ -37,8 +37,9 @@ async function exchangeToken(token, appId, appSecret) {
 // Singleton: current active token
 let activeToken = null;
 
+// On Vercel (serverless), getActiveToken falls back to env var directly
 export function getActiveToken() {
-  return activeToken;
+  return activeToken || process.env.META_ACCESS_TOKEN;
 }
 
 export async function initTokenManager(envToken, appId, appSecret) {
