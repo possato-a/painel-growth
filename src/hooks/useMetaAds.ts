@@ -4,7 +4,7 @@ import type {
   MetaCampaignsResponse,
   MetaAdSetsResponse,
   MetaAdsResponse,
-  DatePreset,
+  DateRange,
 } from '@/types/meta';
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -16,62 +16,73 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function useOverview(datePreset: DatePreset) {
+function dateParams(range: DateRange): string {
+  if (typeof range === 'string') return `date_preset=${range}`;
+  return `since=${range.since}&until=${range.until}`;
+}
+
+// Stable cache key for DateRange
+function dateKey(range: DateRange): string {
+  if (typeof range === 'string') return range;
+  return `${range.since}__${range.until}`;
+}
+
+export function useOverview(range: DateRange) {
   return useQuery<MetaOverviewResponse>({
-    queryKey: ['meta', 'overview', datePreset],
+    queryKey: ['meta', 'overview', dateKey(range)],
     queryFn: () =>
-      fetchJson<MetaOverviewResponse>(`/api/meta/overview?date_preset=${datePreset}`),
+      fetchJson<MetaOverviewResponse>(`/api/meta/overview?${dateParams(range)}`),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useCampaigns(datePreset: DatePreset) {
+export function useCampaigns(range: DateRange) {
   return useQuery<MetaCampaignsResponse>({
-    queryKey: ['meta', 'campaigns', datePreset],
+    queryKey: ['meta', 'campaigns', dateKey(range)],
     queryFn: () =>
-      fetchJson<MetaCampaignsResponse>(`/api/meta/campaigns?date_preset=${datePreset}`),
+      fetchJson<MetaCampaignsResponse>(`/api/meta/campaigns?${dateParams(range)}`),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useAdSets(campaignId: string | null, datePreset: DatePreset) {
+export function useAdSets(campaignId: string | null, range: DateRange) {
   return useQuery<MetaAdSetsResponse>({
-    queryKey: ['meta', 'adsets', campaignId, datePreset],
+    queryKey: ['meta', 'adsets', campaignId, dateKey(range)],
     queryFn: () =>
       fetchJson<MetaAdSetsResponse>(
-        `/api/meta/campaigns/${campaignId}/adsets?date_preset=${datePreset}`
+        `/api/meta/campaigns/${campaignId}/adsets?${dateParams(range)}`
       ),
     enabled: Boolean(campaignId),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useAds(adsetId: string | null, datePreset: DatePreset) {
+export function useAds(adsetId: string | null, range: DateRange) {
   return useQuery<MetaAdsResponse>({
-    queryKey: ['meta', 'ads', adsetId, datePreset],
+    queryKey: ['meta', 'ads', adsetId, dateKey(range)],
     queryFn: () =>
       fetchJson<MetaAdsResponse>(
-        `/api/meta/adsets/${adsetId}/ads?date_preset=${datePreset}`
+        `/api/meta/adsets/${adsetId}/ads?${dateParams(range)}`
       ),
     enabled: Boolean(adsetId),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useAdSetsAll(datePreset: DatePreset) {
+export function useAdSetsAll(range: DateRange) {
   return useQuery<MetaAdSetsResponse>({
-    queryKey: ['meta', 'adsets-all', datePreset],
+    queryKey: ['meta', 'adsets-all', dateKey(range)],
     queryFn: () =>
-      fetchJson<MetaAdSetsResponse>(`/api/meta/adsets-all?date_preset=${datePreset}`),
+      fetchJson<MetaAdSetsResponse>(`/api/meta/adsets-all?${dateParams(range)}`),
     staleTime: 5 * 60 * 1000,
   });
 }
 
-export function useAdsAll(datePreset: DatePreset) {
+export function useAdsAll(range: DateRange) {
   return useQuery<MetaAdsResponse>({
-    queryKey: ['meta', 'ads-all', datePreset],
+    queryKey: ['meta', 'ads-all', dateKey(range)],
     queryFn: () =>
-      fetchJson<MetaAdsResponse>(`/api/meta/ads?date_preset=${datePreset}`),
+      fetchJson<MetaAdsResponse>(`/api/meta/ads?${dateParams(range)}`),
     staleTime: 5 * 60 * 1000,
   });
 }

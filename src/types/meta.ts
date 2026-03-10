@@ -58,6 +58,13 @@ export type DatePreset =
   | 'this_month'
   | 'last_month';
 
+export interface DateCustom {
+  since: string; // YYYY-MM-DD
+  until: string; // YYYY-MM-DD
+}
+
+export type DateRange = DatePreset | DateCustom;
+
 export interface MetaOverviewResponse {
   data: MetaDailyInsight[];
   paging?: {

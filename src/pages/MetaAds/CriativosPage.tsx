@@ -24,7 +24,7 @@ import { RefreshControl } from '@/components/RefreshControl';
 import { fmtCurrency, fmtCompact, fmtPct, fmtNumber } from '@/lib/formatters';
 import { Badge, statusToBadgeVariant, statusLabel } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import type { DatePreset, Ad } from '@/types/meta';
+import type { DateRange, Ad } from '@/types/meta';
 
 type SortMetric = 'ctr' | 'spend' | 'impressions' | 'cpc';
 
@@ -185,10 +185,10 @@ const AdRow = memo(function AdRow({ ad, rank }: AdRowProps) {
 });
 
 export function CriativosPage() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
+  const [dateRange, setDateRange] = useState<DateRange>('last_30d');
   const [sortMetric, setSortMetric] = useState<SortMetric>('spend');
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
-  const { data: adsData, isLoading, error } = useAdsAll(datePreset);
+  const { data: adsData, isLoading, error } = useAdsAll(dateRange);
   const allAds = adsData?.data ?? [];
   const ads = useMemo(
     () => allAds.filter((a) => matchesStatusFilter(a.effective_status, statusFilter)),
@@ -268,7 +268,7 @@ export function CriativosPage() {
           <div className="flex items-center gap-2">
             <RefreshControl />
             <StatusFilter value={statusFilter} onChange={setStatusFilter} />
-            <DateRangeSelector value={datePreset} onChange={setDatePreset} />
+            <DateRangeSelector value={dateRange} onChange={setDateRange} />
           </div>
         </div>
       </div>

@@ -18,7 +18,7 @@ import { classifyFunnelStage, classifyAdMidFunnelType, MID_LABELS } from '@/lib/
 import { fmtCurrency, fmtCompact, fmtPct, fmtNumber } from '@/lib/formatters';
 import { Badge, statusToBadgeVariant, statusLabel } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import type { DatePreset, Ad } from '@/types/meta';
+import type { DateRange, Ad } from '@/types/meta';
 import type { MidFunnelType } from '@/lib/classify';
 
 const TYPE_COLORS: Record<MidFunnelType, string> = {
@@ -294,11 +294,11 @@ function AdsTable({ ads }: { ads: Ad[] }) {
 }
 
 export function MeioFunilPage() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
+  const [dateRange, setDateRange] = useState<DateRange>('last_30d');
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
 
-  const { data: campaignsData, isLoading: loadingCampaigns } = useCampaigns(datePreset);
-  const { data: adsData, isLoading: loadingAds } = useAdsAll(datePreset);
+  const { data: campaignsData, isLoading: loadingCampaigns } = useCampaigns(dateRange);
+  const { data: adsData, isLoading: loadingAds } = useAdsAll(dateRange);
 
   const isLoading = loadingCampaigns || loadingAds;
 
@@ -384,7 +384,7 @@ export function MeioFunilPage() {
           <div className="flex items-center gap-2">
             <RefreshControl />
             <StatusFilter value={statusFilter} onChange={setStatusFilter} />
-            <DateRangeSelector value={datePreset} onChange={setDatePreset} />
+            <DateRangeSelector value={dateRange} onChange={setDateRange} />
           </div>
         </div>
       </div>

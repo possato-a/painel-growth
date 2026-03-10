@@ -3,11 +3,11 @@ import { useAds } from '@/hooks/useMetaAds';
 import { Badge, statusToBadgeVariant, statusLabel } from '@/components/ui/Badge';
 import { SkeletonRow } from '@/components/ui/Skeleton';
 import { fmtCurrency, fmtNumber, fmtPct, fmtCompact } from '@/lib/formatters';
-import type { DatePreset, Ad } from '@/types/meta';
+import type { DateRange, Ad } from '@/types/meta';
 
 interface AdsTableProps {
   adsetId: string;
-  datePreset: DatePreset;
+  datePreset: DateRange;
 }
 
 function getInsight(ad: Ad) {

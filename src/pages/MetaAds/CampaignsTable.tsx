@@ -5,7 +5,7 @@ import { SkeletonRow } from '@/components/ui/Skeleton';
 import { fmtCurrency, fmtNumber, fmtPct, fmtCompact, getObjectiveLabel } from '@/lib/formatters';
 import { AdSetsTable } from './AdSetsTable';
 import { cn } from '@/lib/cn';
-import type { DatePreset, Campaign } from '@/types/meta';
+import type { DateRange, Campaign } from '@/types/meta';
 
 interface CampaignsTableProps {
   campaigns: Campaign[];
@@ -13,7 +13,7 @@ interface CampaignsTableProps {
   error: Error | null;
   expandedId: string | null;
   onExpand: (id: string | null) => void;
-  datePreset: DatePreset;
+  datePreset: DateRange;
 }
 
 type SortKey = 'name' | 'spend' | 'impressions' | 'reach' | 'clicks' | 'ctr' | 'cpm' | 'cpc';

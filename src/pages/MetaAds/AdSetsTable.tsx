@@ -6,13 +6,13 @@ import { SkeletonRow } from '@/components/ui/Skeleton';
 import { fmtCurrency, fmtNumber, fmtPct, fmtCompact } from '@/lib/formatters';
 import { AdsTable } from './AdsTable';
 import { cn } from '@/lib/cn';
-import type { DatePreset, AdSet } from '@/types/meta';
+import type { DateRange, AdSet } from '@/types/meta';
 
 interface AdSetsTableProps {
   campaignId: string;
   expandedId: string | null;
   onExpand: (id: string | null) => void;
-  datePreset: DatePreset;
+  datePreset: DateRange;
 }
 
 type SortKey = 'name' | 'spend' | 'impressions' | 'reach' | 'clicks' | 'ctr' | 'cpm' | 'cpc';

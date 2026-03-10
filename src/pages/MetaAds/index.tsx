@@ -1,25 +1,32 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useOverview, useCampaigns } from '@/hooks/useMetaAds';
 import { OverviewCards } from './OverviewCards';
 import { SpendChart } from './SpendChart';
 import { CampaignsTable } from './CampaignsTable';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
 import { RefreshControl } from '@/components/RefreshControl';
-import type { DatePreset } from '@/types/meta';
+import { StatusFilter, matchesStatusFilter, type StatusFilterValue } from '@/components/StatusFilter';
+import type { DateRange } from '@/types/meta';
 
 export function MetaAdsPage() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
+  const [dateRange, setDateRange] = useState<DateRange>('last_30d');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
 
-  const overview = useOverview(datePreset);
-  const campaigns = useCampaigns(datePreset);
+  const overview = useOverview(dateRange);
+  const campaigns = useCampaigns(dateRange);
+
+  const filteredCampaigns = useMemo(
+    () => (campaigns.data?.data ?? []).filter((c) => matchesStatusFilter(c.effective_status, statusFilter)),
+    [campaigns.data, statusFilter]
+  );
 
   function handleExpandCampaign(id: string | null) {
     setExpandedCampaignId(id);
   }
 
-  function handlePresetSelect(preset: DatePreset) {
-    setDatePreset(preset);
+  function handleRangeChange(range: DateRange) {
+    setDateRange(range);
     setExpandedCampaignId(null);
   }
 
@@ -36,16 +43,16 @@ export function MetaAdsPage() {
               CA · Franquia Be Honest
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <RefreshControl />
-            <DateRangeSelector value={datePreset} onChange={handlePresetSelect} />
+            <StatusFilter value={statusFilter} onChange={setStatusFilter} />
+            <DateRangeSelector value={dateRange} onChange={handleRangeChange} />
           </div>
         </div>
       </div>
 
       {/* Page Content */}
       <div className="px-8 py-6 space-y-6">
-        {/* KPI Cards */}
         <section>
           <OverviewCards
             data={overview.data?.data}
@@ -53,7 +60,6 @@ export function MetaAdsPage() {
           />
         </section>
 
-        {/* Spend Chart */}
         <section>
           <SpendChart
             data={overview.data?.data}
@@ -61,15 +67,14 @@ export function MetaAdsPage() {
           />
         </section>
 
-        {/* Campaigns Table */}
         <section>
           <CampaignsTable
-            campaigns={campaigns.data?.data ?? []}
+            campaigns={filteredCampaigns}
             isLoading={campaigns.isLoading}
             error={campaigns.error}
             expandedId={expandedCampaignId}
             onExpand={handleExpandCampaign}
-            datePreset={datePreset}
+            datePreset={dateRange}
           />
         </section>
       </div>

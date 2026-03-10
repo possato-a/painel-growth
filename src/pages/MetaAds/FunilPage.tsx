@@ -9,7 +9,7 @@ import { generateFunnelInsights, type Insight, type StageData } from '@/lib/insi
 import { fmtCurrency, fmtCompact, fmtPct, fmtNumber } from '@/lib/formatters';
 import { Badge, statusToBadgeVariant, statusLabel } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import type { DatePreset, Campaign } from '@/types/meta';
+import type { DateRange, Campaign } from '@/types/meta';
 
 const STAGE_COLORS = {
   topo: '#2383E2',
@@ -97,7 +97,7 @@ interface StageCardProps {
   data: StageData;
   totalSpend: number;
   campaigns: Campaign[];
-  datePreset: DatePreset;
+  datePreset: DateRange;
 }
 
 function StageCard({ stage, data, totalSpend }: StageCardProps) {
@@ -380,9 +380,9 @@ function StageCampaignsTable({
 }
 
 export function FunilPage() {
-  const [datePreset, setDatePreset] = useState<DatePreset>('last_30d');
+  const [dateRange, setDateRange] = useState<DateRange>('last_30d');
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>('all');
-  const { data: campaignsData, isLoading } = useCampaigns(datePreset);
+  const { data: campaignsData, isLoading } = useCampaigns(dateRange);
   const allCampaigns = campaignsData?.data ?? [];
   const campaigns = useMemo(
     () => allCampaigns.filter((c) => matchesStatusFilter(c.effective_status, statusFilter)),
@@ -424,7 +424,7 @@ export function FunilPage() {
           <div className="flex items-center gap-2">
             <RefreshControl />
             <StatusFilter value={statusFilter} onChange={setStatusFilter} />
-            <DateRangeSelector value={datePreset} onChange={setDatePreset} />
+            <DateRangeSelector value={dateRange} onChange={setDateRange} />
           </div>
         </div>
       </div>
@@ -448,9 +448,9 @@ export function FunilPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <StageCard stage="topo" data={topoData} totalSpend={totalSpend} campaigns={campaigns} datePreset={datePreset} />
-            <StageCard stage="meio" data={meioData} totalSpend={totalSpend} campaigns={campaigns} datePreset={datePreset} />
-            <StageCard stage="fundo" data={fundoData} totalSpend={totalSpend} campaigns={campaigns} datePreset={datePreset} />
+            <StageCard stage="topo" data={topoData} totalSpend={totalSpend} campaigns={campaigns} datePreset={dateRange} />
+            <StageCard stage="meio" data={meioData} totalSpend={totalSpend} campaigns={campaigns} datePreset={dateRange} />
+            <StageCard stage="fundo" data={fundoData} totalSpend={totalSpend} campaigns={campaigns} datePreset={dateRange} />
           </div>
         )}
 
