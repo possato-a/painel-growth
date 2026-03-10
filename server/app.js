@@ -4,12 +4,17 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execFile } from 'child_process';
 import { getActiveToken } from './token-manager.js';
 import { sheetsGet, sheetsUpdate } from './google-sheets.js';
+import { runSync } from './crm-sync.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CRM_STORE  = path.join(__dirname, 'crm-data.json');
+
+// On Vercel the deployed FS is read-only; use /tmp for writes.
+// Reads fall back from /tmp → deployed file.
+const CRM_STORE_WRITE = '/tmp/crm-data.json';
+const CRM_STORE_READ  = path.join(__dirname, 'crm-data.json');
+
 const CRM_SHEET_ID   = '1yK70fNR8dYbehKPLSOEv3SPSPZKp01PNgMZa11M_TKQ';
 const CRM_PAINEL_TAB = 'CRM_PAINEL';
 
@@ -192,23 +197,39 @@ function parseCrmSheet(values) {
   });
 }
 
+function readStoreFile() {
+  // Try writable /tmp first (most recent sync), then fall back to deployed file
+  for (const p of [CRM_STORE_WRITE, CRM_STORE_READ]) {
+    try {
+      const raw = fs.readFileSync(p, 'utf8');
+      return JSON.parse(raw);
+    } catch {}
+  }
+  return null;
+}
+
+function writeStoreFile(store) {
+  try {
+    fs.writeFileSync(CRM_STORE_WRITE, JSON.stringify(store, null, 2));
+  } catch (e) {
+    console.error('[crm] writeStoreFile error:', e.message);
+  }
+}
+
 async function loadCrmLeads() {
   const now = Date.now();
   if (crmCache && now - crmCacheAt < CRM_CACHE_TTL) return crmCache;
 
-  // Try local JSON first (fastest)
-  try {
-    const raw   = fs.readFileSync(CRM_STORE, 'utf8');
-    const store = JSON.parse(raw);
-    // New format: { lastSync, crm: {...}, history: {...} }
-    // Legacy format: { lastSync, leads: [...] } — migrate on the fly
+  // Try local JSON files first (fastest)
+  const store = readStoreFile();
+  if (store) {
     const data = store.crm
       ? { lastSync: store.lastSync, ...store.crm }
       : { lastSync: store.lastSync, leads: store.leads, totalLeads: store.leads?.length, uniqueLeads: store.uniqueLeads };
     crmCache   = data;
     crmCacheAt = now;
     return data;
-  } catch {}
+  }
 
   // Fall back to Google Sheets
   const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:W`);
@@ -246,17 +267,11 @@ app.get('/api/crm/leads', async (req, res) => {
 // GET /api/crm/history — full Leads Franquia history (all dates, original columns)
 app.get('/api/crm/history', async (req, res) => {
   try {
-    let history = null;
-    try {
-      const raw   = fs.readFileSync(CRM_STORE, 'utf8');
-      const store = JSON.parse(raw);
-      history = store.history || null;
-    } catch {}
-
-    if (!history) {
+    const store = readStoreFile();
+    if (!store?.history) {
       return res.status(503).json({ error: 'Histórico não disponível. Execute crm-sync primeiro.' });
     }
-    res.json({ lastSync: null, ...history });
+    res.json({ lastSync: store.lastSync || null, ...store.history });
   } catch (err) {
     console.error('[crm] history error:', err.message);
     res.status(500).json({ error: err.message });
@@ -298,7 +313,7 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
     if (motivoPerda    !== undefined) lead.motivoPerda    = motivoPerda;
     if (valor          !== undefined) lead.valor          = valor;
 
-    fs.writeFileSync(CRM_STORE, JSON.stringify(store, null, 2));
+    writeStoreFile(store);
 
     // Invalidate cache
     crmCache   = null;
@@ -316,25 +331,32 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
   }
 });
 
-// POST /api/crm/sync — trigger manual sync (local only)
-app.post('/api/crm/sync', (req, res) => {
-  const syncScript = path.join(__dirname, '..', '..', 'scripts', 'crm-sync.js');
-  if (!fs.existsSync(syncScript)) {
-    return res.status(404).json({ error: 'Sync script not found' });
-  }
+// POST /api/crm/sync — trigger manual sync (runs inline, works on Vercel)
+app.post('/api/crm/sync', async (req, res) => {
+  try {
+    // Pass existing leads so stageHistory is preserved across syncs
+    const existing = readStoreFile();
+    const existingLeads = existing?.crm?.leads || [];
 
-  execFile('node', [syncScript], { cwd: path.dirname(syncScript) }, (err, stdout, stderr) => {
-    // Invalidate cache after sync
+    const store = await runSync(existingLeads);
+
+    // Persist result
+    writeStoreFile(store);
+
+    // Invalidate cache
     crmCache   = null;
     crmCacheAt = 0;
 
-    if (err) {
-      console.error('[crm] Sync error:', stderr);
-      return res.status(500).json({ error: stderr || err.message });
-    }
-    console.log('[crm] Sync output:', stdout);
-    res.json({ ok: true, output: stdout });
-  });
+    res.json({
+      ok: true,
+      totalLeads: store.crm.totalLeads,
+      uniqueLeads: store.crm.uniqueLeads,
+      lastSync: store.lastSync,
+    });
+  } catch (err) {
+    console.error('[crm] Sync error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default app;
