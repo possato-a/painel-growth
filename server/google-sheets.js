@@ -17,17 +17,20 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const FIVE_MIN_MS   = 5 * 60 * 1000;
 
 function loadStore() {
-  if (process.env.GOOGLE_ACCESS_TOKEN) {
+  // Vercel: GOOGLE_REFRESH_TOKEN is always set → use it to obtain a fresh access token
+  if (process.env.GOOGLE_REFRESH_TOKEN) {
     return {
-      access_token:  process.env.GOOGLE_ACCESS_TOKEN,
+      access_token:  process.env.GOOGLE_ACCESS_TOKEN || null,
       refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-      expires_at:    Date.now() - 1, // force refresh if env var is static
+      // If no cached access token, force immediate refresh
+      expires_at:    process.env.GOOGLE_ACCESS_TOKEN ? Date.now() + 3600_000 : Date.now() - 1,
     };
   }
+  // Local dev: read from file
   try {
     return JSON.parse(fs.readFileSync(TOKEN_STORE, 'utf8'));
   } catch {
-    throw new Error('[google-sheets] Token store não encontrado e GOOGLE_ACCESS_TOKEN não definido.');
+    throw new Error('[google-sheets] Token store não encontrado e GOOGLE_REFRESH_TOKEN não definido.');
   }
 }
 
