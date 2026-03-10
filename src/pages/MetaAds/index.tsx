@@ -4,6 +4,7 @@ import { OverviewCards } from './OverviewCards';
 import { SpendChart } from './SpendChart';
 import { CampaignsTable } from './CampaignsTable';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
+import { RefreshControl } from '@/components/RefreshControl';
 import type { DatePreset } from '@/types/meta';
 
 export function MetaAdsPage() {
@@ -35,7 +36,10 @@ export function MetaAdsPage() {
               CA · Franquia Be Honest
             </span>
           </div>
-          <DateRangeSelector value={datePreset} onChange={handlePresetSelect} />
+          <div className="flex items-center gap-3">
+            <RefreshControl />
+            <DateRangeSelector value={datePreset} onChange={handlePresetSelect} />
+          </div>
         </div>
       </div>
 

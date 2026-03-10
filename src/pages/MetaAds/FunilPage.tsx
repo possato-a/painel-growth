@@ -3,6 +3,7 @@ import { AlertTriangle, AlertCircle, CheckCircle, Info, ChevronDown, ChevronRigh
 import { useCampaigns } from '@/hooks/useMetaAds';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
 import { StatusFilter, matchesStatusFilter, type StatusFilterValue } from '@/components/StatusFilter';
+import { RefreshControl } from '@/components/RefreshControl';
 import { classifyFunnelStage, STAGE_LABELS } from '@/lib/classify';
 import { generateFunnelInsights, type Insight, type StageData } from '@/lib/insights';
 import { fmtCurrency, fmtCompact, fmtPct, fmtNumber } from '@/lib/formatters';
@@ -421,6 +422,7 @@ export function FunilPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshControl />
             <StatusFilter value={statusFilter} onChange={setStatusFilter} />
             <DateRangeSelector value={datePreset} onChange={setDatePreset} />
           </div>

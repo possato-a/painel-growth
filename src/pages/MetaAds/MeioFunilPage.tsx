@@ -13,6 +13,7 @@ import {
 import { useCampaigns, useAdsAll } from '@/hooks/useMetaAds';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
 import { StatusFilter, matchesStatusFilter, type StatusFilterValue } from '@/components/StatusFilter';
+import { RefreshControl } from '@/components/RefreshControl';
 import { classifyFunnelStage, classifyAdMidFunnelType, MID_LABELS } from '@/lib/classify';
 import { fmtCurrency, fmtCompact, fmtPct, fmtNumber } from '@/lib/formatters';
 import { Badge, statusToBadgeVariant, statusLabel } from '@/components/ui/Badge';
@@ -381,6 +382,7 @@ export function MeioFunilPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshControl />
             <StatusFilter value={statusFilter} onChange={setStatusFilter} />
             <DateRangeSelector value={datePreset} onChange={setDatePreset} />
           </div>
