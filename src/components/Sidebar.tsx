@@ -109,27 +109,33 @@ export function Sidebar() {
         <p className="text-xs font-medium text-notion-text-tertiary uppercase tracking-wider px-2 mb-2 mt-1">
           CRM
         </p>
-        <NavLink
-          to="/crm"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors duration-[120ms] select-none',
-              isActive
-                ? 'bg-notion-bg-tertiary text-notion-text-primary font-medium'
-                : 'text-notion-text-secondary hover:bg-notion-bg-tertiary hover:text-notion-text-primary'
-            )
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <Database
-                size={14}
-                className={cn('flex-shrink-0', isActive ? 'text-notion-primary' : 'text-notion-text-secondary')}
-              />
-              <span className="flex-1">Histórico de Leads</span>
-            </>
-          )}
-        </NavLink>
+        <div className="space-y-0.5">
+          {[
+            { to: '/crm', label: 'CRM', icon: Database },
+            { to: '/crm/historico', label: 'Histórico de Leads', icon: Users },
+          ].map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2 py-1 px-2 rounded text-[12px] transition-colors duration-[120ms] select-none border-l-2 pl-[6px]',
+                  isActive
+                    ? 'text-notion-primary bg-[#E7F3FF] border-notion-primary'
+                    : 'text-[#787774] hover:bg-[#EFEEEB] hover:text-notion-text-primary border-transparent'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon size={12} className={isActive ? 'text-notion-primary flex-shrink-0' : 'text-[#787774] flex-shrink-0'} />
+                  <span className="flex-1">{item.label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
 
         {/* Spacer */}
         <div className="pt-2" />

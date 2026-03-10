@@ -66,13 +66,14 @@ function StatCard({ label, value, sub, color }: { label: string; value: number; 
 
 // Inline editable cell for commercial fields
 function EditableCell({
-  rowId, field, value, options, placeholder,
+  rowId, field, value, options, placeholder, renderValue,
 }: {
   rowId: string;
-  field: 'statusPipeline' | 'motivoPerda' | 'valor';
+  field: 'estagio' | 'statusPipeline' | 'motivoPerda' | 'valor';
   value: string;
   options?: string[];
   placeholder?: string;
+  renderValue?: (v: string) => React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -131,7 +132,9 @@ function EditableCell({
       className="group flex items-center gap-1 text-[11px] text-notion-text-primary hover:text-notion-primary transition-colors"
       onClick={startEdit}
     >
-      <span className={value ? '' : 'text-notion-text-tertiary italic'}>{value || placeholder || '—'}</span>
+      {renderValue && value
+        ? renderValue(value)
+        : <span className={value ? '' : 'text-notion-text-tertiary italic'}>{value || placeholder || '—'}</span>}
       {patch.isPending ? (
         <Loader2 size={10} className="animate-spin text-notion-text-tertiary" />
       ) : (
@@ -357,7 +360,7 @@ export function CRMPage() {
                       { key: 'cidade',         label: 'Cidade/UF',    w: 120 },
                       { key: 'canalTipo',      label: 'Canal',        w: 140 },
                       { key: 'focoCaptacao',   label: 'Foco',         w: 110 },
-                      { key: 'estagio',        label: 'Estágio',      w: 130 },
+                      { key: 'estagio',        label: 'Estágio',      w: 140 },
                       { key: 'disponibilidade',label: 'Investimento', w: 110 },
                       { key: 'statusPipeline', label: 'Pipeline',     w: 100 },
                       { key: 'motivoPerda',    label: 'Motivo Perda', w: 120 },
@@ -412,9 +415,15 @@ export function CRMPage() {
                       <td className="px-3 py-2">
                         <FocoBadge foco={lead.focoCaptacao} />
                       </td>
-                      {/* Estágio */}
+                      {/* Estágio (editable) */}
                       <td className="px-3 py-2">
-                        <StageBadge stage={lead.estagio} />
+                        <EditableCell
+                          rowId={lead.rowId}
+                          field="estagio"
+                          value={lead.estagio}
+                          options={Object.keys(STAGE_CONFIG)}
+                          renderValue={(v) => <StageBadge stage={v} />}
+                        />
                       </td>
                       {/* Investimento */}
                       <td className="px-3 py-2 text-notion-text-secondary whitespace-nowrap">{lead.disponibilidade || '—'}</td>

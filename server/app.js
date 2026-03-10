@@ -198,8 +198,13 @@ async function loadCrmLeads() {
 
   // Try local JSON first (fastest)
   try {
-    const raw  = fs.readFileSync(CRM_STORE, 'utf8');
-    const data = JSON.parse(raw);
+    const raw   = fs.readFileSync(CRM_STORE, 'utf8');
+    const store = JSON.parse(raw);
+    // New format: { lastSync, crm: {...}, history: {...} }
+    // Legacy format: { lastSync, leads: [...] } — migrate on the fly
+    const data = store.crm
+      ? { lastSync: store.lastSync, ...store.crm }
+      : { lastSync: store.lastSync, leads: store.leads, totalLeads: store.leads?.length, uniqueLeads: store.uniqueLeads };
     crmCache   = data;
     crmCacheAt = now;
     return data;
@@ -222,8 +227,8 @@ async function patchCrmRowInSheet(rowId, fields) {
 
   const sheetRow = rowIndex + 1; // 1-indexed
   // S=statusPipeline, T=motivoPerda, U=valor  (cols 19,20,21 = S,T,U)
-  const range  = `${CRM_PAINEL_TAB}!S${sheetRow}:U${sheetRow}`;
-  const values = [[fields.statusPipeline ?? '', fields.motivoPerda ?? '', fields.valor ?? '']];
+  const range  = `${CRM_PAINEL_TAB}!R${sheetRow}:U${sheetRow}`;
+  const values = [[fields.estagio ?? '', fields.statusPipeline ?? '', fields.motivoPerda ?? '', fields.valor ?? '']];
   await sheetsUpdate(CRM_SHEET_ID, range, values);
 }
 
@@ -238,10 +243,30 @@ app.get('/api/crm/leads', async (req, res) => {
   }
 });
 
+// GET /api/crm/history — full Leads Franquia history (all dates, original columns)
+app.get('/api/crm/history', async (req, res) => {
+  try {
+    let history = null;
+    try {
+      const raw   = fs.readFileSync(CRM_STORE, 'utf8');
+      const store = JSON.parse(raw);
+      history = store.history || null;
+    } catch {}
+
+    if (!history) {
+      return res.status(503).json({ error: 'Histórico não disponível. Execute crm-sync primeiro.' });
+    }
+    res.json({ lastSync: null, ...history });
+  } catch (err) {
+    console.error('[crm] history error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/crm/leads/:rowId — update commercial fields
 app.patch('/api/crm/leads/:rowId', async (req, res) => {
   const { rowId } = req.params;
-  const { statusPipeline, motivoPerda, valor } = req.body;
+  const { statusPipeline, motivoPerda, valor, estagio } = req.body;
 
   try {
     // Update local JSON
@@ -252,9 +277,11 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
       return res.status(503).json({ error: 'CRM store not found. Run crm-sync first.' });
     }
 
-    const lead = store.leads.find(l => l.rowId === rowId);
+    const leads = store.crm ? store.crm.leads : store.leads;
+    const lead = leads.find(l => l.rowId === rowId);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
+    if (estagio        !== undefined) lead.estagio        = estagio;
     if (statusPipeline !== undefined) lead.statusPipeline = statusPipeline;
     if (motivoPerda    !== undefined) lead.motivoPerda    = motivoPerda;
     if (valor          !== undefined) lead.valor          = valor;
@@ -266,7 +293,7 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
     crmCacheAt = 0;
 
     // Update Google Sheets (fire and forget, don't block response)
-    patchCrmRowInSheet(rowId, { statusPipeline, motivoPerda, valor }).catch(e =>
+    patchCrmRowInSheet(rowId, { estagio, statusPipeline, motivoPerda, valor }).catch(e =>
       console.error('[crm] Sheets patch error:', e.message)
     );
 

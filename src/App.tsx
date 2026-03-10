@@ -8,6 +8,7 @@ import { MeioFunilPage } from '@/pages/MetaAds/MeioFunilPage';
 import { CriativosPage } from '@/pages/MetaAds/CriativosPage';
 import { DocsPage } from '@/pages/Docs/DocsPage';
 import { CRMPage } from '@/pages/CRM/CRMPage';
+import { HistoricoPage } from '@/pages/CRM/HistoricoPage';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/meta-ads/criativos" element={<CriativosPage />} />
             <Route path="/docs" element={<DocsPage />} />
             <Route path="/crm" element={<CRMPage />} />
+            <Route path="/crm/historico" element={<HistoricoPage />} />
             <Route path="*" element={<Navigate to="/meta-ads/geral" replace />} />
           </Routes>
         </Layout>

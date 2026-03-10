@@ -31,6 +31,30 @@ export interface CRMStore {
   leads: CRMLead[];
 }
 
+export interface HistoryLead {
+  data: string;
+  hora: string;
+  nome: string;
+  email: string;
+  celular: string;
+  cidade: string;
+  estado: string;
+  disponibilidade: string;
+  mqStatus: string;
+  page: string;
+  source: string;
+  medium: string;
+  campaign: string;
+  content: string;
+  term: string;
+}
+
+export interface HistoryStore {
+  lastSync: string | null;
+  totalLeads: number;
+  leads: HistoryLead[];
+}
+
 async function fetchCRM(): Promise<CRMStore> {
   const res = await fetch('/api/crm/leads');
   if (!res.ok) throw new Error('Erro ao carregar CRM');
@@ -53,7 +77,7 @@ export function usePatchLead() {
       fields,
     }: {
       rowId: string;
-      fields: Partial<Pick<CRMLead, 'statusPipeline' | 'motivoPerda' | 'valor'>>;
+      fields: Partial<Pick<CRMLead, 'estagio' | 'statusPipeline' | 'motivoPerda' | 'valor'>>;
     }) => {
       const res = await fetch(`/api/crm/leads/${encodeURIComponent(rowId)}`, {
         method: 'PATCH',
@@ -66,6 +90,20 @@ export function usePatchLead() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['crm'] });
     },
+  });
+}
+
+async function fetchHistory(): Promise<HistoryStore> {
+  const res = await fetch('/api/crm/history');
+  if (!res.ok) throw new Error('Erro ao carregar histórico');
+  return res.json();
+}
+
+export function useLeadsHistory() {
+  return useQuery({
+    queryKey: ['crm-history'],
+    queryFn: fetchHistory,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
