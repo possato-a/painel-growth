@@ -79,7 +79,14 @@ export function HistoricoPage() {
     if (filterMql) list = list.filter(l => l.mqStatus === filterMql);
 
     list = [...list].sort((a, b) => {
-      const cmp = String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? ''), 'pt-BR', { numeric: true });
+      const toSort = (v: unknown, key: keyof HistoryLead) => {
+        if (key === 'data') {
+          const p = String(v ?? '').split('/');
+          return p.length === 3 ? `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}` : String(v ?? '');
+        }
+        return String(v ?? '');
+      };
+      const cmp = toSort(a[sortKey], sortKey).localeCompare(toSort(b[sortKey], sortKey), 'pt-BR', { numeric: true });
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
