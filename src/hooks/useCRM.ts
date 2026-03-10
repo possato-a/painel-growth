@@ -16,6 +16,8 @@ export interface CRMLead {
   page: string;
   source: string;
   campaign: string;
+  conjunto: string;
+  criativo: string;
   focoCaptacao: string;
   canalTipo: string;
   estagio: string;

@@ -1,4 +1,4 @@
-import { BookOpen, CheckCircle, XCircle, ArrowRight, Database, Globe, Hash, Ban, GitMerge } from 'lucide-react';
+import { BookOpen, CheckCircle, XCircle, ArrowRight, Database, Globe, Hash, Ban, GitMerge, MapPin, Zap } from 'lucide-react';
 
 interface StageProps {
   color: string;
@@ -569,6 +569,179 @@ export function DocsPage() {
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-2">Entradas de teste</p>
                 <p className="text-[12px] text-notion-text-secondary">Qualquer lead cujo nome ou email contenha <code className="font-mono bg-notion-bg-secondary border border-notion-border px-1 rounded">teste</code>, <code className="font-mono bg-notion-bg-secondary border border-notion-border px-1 rounded">test</code> ou <code className="font-mono bg-notion-bg-secondary border border-notion-border px-1 rounded">@test</code> (comparação case-insensitive) é descartado.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── CIDADES DE OPERAÇÃO ─────────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin size={15} className="text-notion-primary" />
+            <h2 className="text-base font-semibold text-notion-text-primary">Cidades de Operação (Praça)</h2>
+          </div>
+          <div className="bg-notion-bg-primary rounded-lg shadow-notion-md p-5 space-y-4">
+            <p className="text-[13px] text-notion-text-secondary leading-relaxed">
+              Um lead é considerado <strong>"na praça"</strong> quando sua cidade está na lista abaixo. Leads fora da praça são classificados como <strong>LEAD PERDIDO</strong> (meio de funil) ou <strong>MQL RECUSADO</strong> (fundo de funil).
+            </p>
+
+            {[
+              {
+                state: 'Minas Gerais (MG)',
+                color: '#2383E2',
+                bg: '#EBF4FF',
+                border: '#BFDBFE',
+                groups: [
+                  { label: 'Franquias', cities: ['Belo Horizonte', 'Nova Lima', 'Contagem', 'Betim', 'Ribeirão das Neves', 'Santa Luzia', 'Sabará', 'Ibirité', 'Vespasiano', 'Lagoa Santa', 'Pedro Leopoldo', 'Sete Lagoas', 'Juiz de Fora', 'Uberlândia', 'Uberaba'] },
+                  { label: 'Emergentes', cities: ['Governador Valadares', 'Montes Claros', 'Poços de Caldas', 'Pouso Alegre', 'Divinópolis', 'Ipatinga', 'Barbacena'] },
+                ],
+              },
+              {
+                state: 'Goiás (GO)',
+                color: '#0F7B6C',
+                bg: '#ECFDF5',
+                border: '#A7F3D0',
+                groups: [
+                  { label: 'Franquias', cities: ['Goiânia', 'Aparecida de Goiânia', 'Anápolis'] },
+                  { label: 'Emergentes', cities: ['Rio Verde', 'Catalão'] },
+                ],
+              },
+              {
+                state: 'Distrito Federal (DF)',
+                color: '#9333EA',
+                bg: '#F5F3FF',
+                border: '#DDD6FE',
+                groups: [
+                  { label: 'Franquias', cities: ['Brasília', 'Taguatinga', 'Ceilândia', 'Águas Claras'] },
+                ],
+              },
+            ].map((region) => (
+              <div key={region.state} className="border rounded-lg overflow-hidden" style={{ borderColor: region.border }}>
+                <div className="px-4 py-2.5" style={{ background: region.bg, borderBottom: `1px solid ${region.border}` }}>
+                  <span className="text-[12px] font-bold" style={{ color: region.color }}>{region.state}</span>
+                </div>
+                <div className="px-4 py-3 bg-notion-bg-primary space-y-2">
+                  {region.groups.map((g) => (
+                    <div key={g.label}>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-1">{g.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {g.cities.map((c) => (
+                          <span key={c} className="text-[11px] font-medium px-2 py-0.5 rounded" style={{ background: region.bg, color: region.color, border: `1px solid ${region.border}` }}>{c}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-start gap-2 px-3 py-2 rounded text-[12px] bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]">
+              <span className="font-bold flex-shrink-0">⚠</span>
+              <span>Cidades marcadas como <strong>BID</strong> (Business Intelligence Discovery) são usadas apenas para análise interna e <strong>não</strong> classificam leads como "na praça".</span>
+            </div>
+          </div>
+        </section>
+
+        {/* ── AUTO-EVOLUÇÃO DE ESTÁGIO ───────────────────────────── */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <Zap size={15} className="text-notion-primary" />
+            <h2 className="text-base font-semibold text-notion-text-primary">Auto-Evolução de Estágio</h2>
+          </div>
+          <div className="bg-notion-bg-primary rounded-lg shadow-notion-md p-5 space-y-4">
+            <p className="text-[13px] text-notion-text-secondary leading-relaxed">
+              A cada sincronização, o sistema agrupa leads por email e cruza dados de <strong>todas as conversões</strong> para determinar se o lead evoluiu de estágio. Isso acontece automaticamente — ex.: um lead que converteu no Webinar (meio de funil) e depois no fundo de funil (levantada de mão) é promovido.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-2">Três critérios avaliados (cross-conversão)</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {[
+                    { label: 'Na Praça', desc: 'Pelo menos uma conversão do lead tem cidade dentro da praça', color: '#2383E2', bg: '#EBF4FF', icon: '📍' },
+                    { label: 'Tem Capital', desc: 'Pelo menos uma conversão indica disponibilidade de investimento', color: '#9333EA', bg: '#F5F3FF', icon: '💰' },
+                    { label: 'Levantada de Mão', desc: 'Pelo menos uma conversão foi em página de fundo de funil', color: '#0F7B6C', bg: '#ECFDF5', icon: '🙋' },
+                  ].map((c) => (
+                    <div key={c.label} className="rounded-lg border border-notion-border p-3 text-center" style={{ background: c.bg }}>
+                      <span className="text-lg">{c.icon}</span>
+                      <p className="text-[12px] font-bold mt-1" style={{ color: c.color }}>{c.label}</p>
+                      <p className="text-[11px] text-notion-text-secondary mt-0.5">{c.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-2">Regras de evolução (meio de funil)</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse rounded-lg border border-notion-border overflow-hidden">
+                    <thead>
+                      <tr className="bg-notion-bg-secondary/50 border-b border-notion-border">
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Na Praça</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Capital</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Levantou Mão</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Resultado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { praca: '✗', capital: '—', mao: '—', result: 'LEAD PERDIDO', rColor: '#E03E3E' },
+                        { praca: '✓', capital: '✗', mao: '—', result: 'LEAD', rColor: '#2383E2' },
+                        { praca: '✓', capital: '✓', mao: '✗', result: 'PRÉ-MQL', rColor: '#9333EA' },
+                        { praca: '✓', capital: '✓', mao: '✓', result: 'MQL', rColor: '#0F7B6C' },
+                      ].map((r, i) => (
+                        <tr key={i} className="border-b border-notion-border last:border-0">
+                          <td className="px-3 py-2 text-[12px]">{r.praca}</td>
+                          <td className="px-3 py-2 text-[12px]">{r.capital}</td>
+                          <td className="px-3 py-2 text-[12px]">{r.mao}</td>
+                          <td className="px-3 py-2">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ color: r.rColor, background: `${r.rColor}15` }}>{r.result}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-2">Regras de evolução (fundo de funil)</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse rounded-lg border border-notion-border overflow-hidden">
+                    <thead>
+                      <tr className="bg-notion-bg-secondary/50 border-b border-notion-border">
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Na Praça</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Capital</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-notion-text-secondary">Resultado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { praca: '✓', capital: '✓', result: 'MQL', rColor: '#0F7B6C' },
+                        { praca: '✗ ou ✗', capital: '✗ ou ✗', result: 'MQL RECUSADO', rColor: '#D97706' },
+                      ].map((r, i) => (
+                        <tr key={i} className="border-b border-notion-border last:border-0">
+                          <td className="px-3 py-2 text-[12px]">{r.praca}</td>
+                          <td className="px-3 py-2 text-[12px]">{r.capital}</td>
+                          <td className="px-3 py-2">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded" style={{ color: r.rColor, background: `${r.rColor}15` }}>{r.result}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 px-3 py-2 rounded text-[12px] bg-[#ECFDF5] text-[#0F7B6C] border border-[#A7F3D0]">
+                  <span className="font-bold flex-shrink-0">ℹ</span>
+                  <span>Estágios <strong>nunca regridem</strong> automaticamente. Um lead que já é MQL não volta para PRÉ-MQL.</span>
+                </div>
+                <div className="flex items-start gap-2 px-3 py-2 rounded text-[12px] bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]">
+                  <span className="font-bold flex-shrink-0">⚠</span>
+                  <span>Estágios comerciais (CONEXÃO, REUNIÃO FINANCEIRA, SQL, etc.) <strong>nunca são sobrescritos</strong> pela auto-evolução. Esses são definidos exclusivamente pelo time comercial.</span>
+                </div>
               </div>
             </div>
           </div>

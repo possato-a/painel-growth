@@ -177,7 +177,7 @@ const CRM_HEADERS = [
   'rowId','leadId','conversionNum','data','hora',
   'nome','email','celular','cidade','estado',
   'disponibilidade','mqStatus','page','source','campaign',
-  'focoCaptacao','canalTipo','estagio',
+  'conjunto','criativo','focoCaptacao','canalTipo','estagio',
   'statusPipeline','motivoPerda','valor',
 ];
 
@@ -211,7 +211,7 @@ async function loadCrmLeads() {
   } catch {}
 
   // Fall back to Google Sheets
-  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:U`);
+  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:W`);
   const leads = parseCrmSheet(resp.values);
   crmCache   = { lastSync: null, leads, totalLeads: leads.length, uniqueLeads: new Set(leads.map(l => l.leadId)).size };
   crmCacheAt = now;
@@ -227,7 +227,7 @@ async function patchCrmRowInSheet(rowId, fields) {
 
   const sheetRow = rowIndex + 1; // 1-indexed
   // S=statusPipeline, T=motivoPerda, U=valor  (cols 19,20,21 = S,T,U)
-  const range  = `${CRM_PAINEL_TAB}!R${sheetRow}:U${sheetRow}`;
+  const range  = `${CRM_PAINEL_TAB}!T${sheetRow}:W${sheetRow}`;
   const values = [[fields.estagio ?? '', fields.statusPipeline ?? '', fields.motivoPerda ?? '', fields.valor ?? '']];
   await sheetsUpdate(CRM_SHEET_ID, range, values);
 }
