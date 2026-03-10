@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: #37352F;
+    background-color: #F7F6F3;
+    line-height: 1.5;
+  }
+
+  :root {
+    --color-text-primary: #37352F;
+    --color-text-secondary: #787774;
+    --color-text-tertiary: #9B9A97;
+    --color-bg-primary: #FFFFFF;
+    --color-bg-secondary: #F7F6F3;
+    --color-bg-tertiary: #EFEEEB;
+    --color-border: #E3E2E0;
+    --color-primary: #2383E2;
+    --color-primary-hover: #0B6BCB;
+    --color-primary-light: #E7F3FF;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .truncate-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E3E2E0;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C4C4C4;
+}
+
+/* Selection */
+::selection {
+  background-color: #E7F3FF;
+  color: #37352F;
+}
