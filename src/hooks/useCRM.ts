@@ -1,5 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+export interface StageHistoryEntry {
+  stage: string;
+  from?: string;
+  at: string;
+  by: 'sync' | 'manual';
+  note?: string;
+}
+
 export interface CRMLead {
   rowId: string;
   leadId: string;
@@ -24,6 +32,7 @@ export interface CRMLead {
   statusPipeline: string;
   motivoPerda: string;
   valor: string;
+  stageHistory?: StageHistoryEntry[];
 }
 
 export interface CRMStore {

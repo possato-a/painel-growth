@@ -281,7 +281,19 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
     const lead = leads.find(l => l.rowId === rowId);
     if (!lead) return res.status(404).json({ error: 'Lead not found' });
 
-    if (estagio        !== undefined) lead.estagio        = estagio;
+    // Track stage changes in stageHistory
+    if (estagio !== undefined && estagio !== lead.estagio) {
+      const fromStage = lead.estagio;
+      if (!Array.isArray(lead.stageHistory)) lead.stageHistory = [];
+      const at = new Date().toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+      lead.stageHistory.push({ stage: estagio, from: fromStage, at, by: 'manual' });
+      lead.estagio = estagio;
+    } else if (estagio !== undefined) {
+      lead.estagio = estagio;
+    }
     if (statusPipeline !== undefined) lead.statusPipeline = statusPipeline;
     if (motivoPerda    !== undefined) lead.motivoPerda    = motivoPerda;
     if (valor          !== undefined) lead.valor          = valor;

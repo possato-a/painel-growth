@@ -4,7 +4,7 @@ import {
   Check, X, Pencil, Loader2, AlertCircle, XCircle,
   Globe, Phone, Mail, MapPin, Calendar, Clock,
 } from 'lucide-react';
-import { useCRM, usePatchLead, useSyncCRM, type CRMLead } from '@/hooks/useCRM';
+import { useCRM, usePatchLead, useSyncCRM, type CRMLead, type StageHistoryEntry } from '@/hooks/useCRM';
 import { cn } from '@/lib/cn';
 
 // ── Stage config ───────────────────────────────────────────────
@@ -358,6 +358,51 @@ function LeadSidebar({
               placeholder="R$"
             />
           </div>
+
+          {/* Stage evolution history */}
+          {lead.stageHistory && lead.stageHistory.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-notion-text-tertiary">
+                Evolução de estágio ({lead.stageHistory.length})
+              </p>
+              <div className="relative pl-4">
+                {/* vertical line */}
+                <div className="absolute left-1.5 top-1 bottom-1 w-px bg-notion-border" />
+                <div className="space-y-2.5">
+                  {lead.stageHistory.map((entry: StageHistoryEntry, i: number) => {
+                    const cfg = STAGE_CONFIG[entry.stage] || { color: '#6B7280', bg: '#F3F4F6', label: entry.stage };
+                    const isLast = i === lead.stageHistory!.length - 1;
+                    return (
+                      <div key={i} className="flex items-start gap-2.5">
+                        {/* dot */}
+                        <div
+                          className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 border-2', isLast ? 'border-current' : 'border-transparent')}
+                          style={{ background: isLast ? cfg.color : cfg.bg, borderColor: isLast ? cfg.color : 'transparent', marginLeft: -3 }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className="text-[11px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{ background: cfg.bg, color: cfg.color }}
+                            >
+                              {cfg.label || entry.stage}
+                            </span>
+                            {entry.by === 'manual' && (
+                              <span className="text-[10px] px-1 py-0.5 rounded bg-[#FFFBEB] text-[#D97706] font-medium">manual</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-notion-text-tertiary mt-0.5">{entry.at}</p>
+                          {entry.from && (
+                            <p className="text-[10px] text-notion-text-tertiary">de: {entry.from}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Conversion history */}
           <div className="space-y-2">
