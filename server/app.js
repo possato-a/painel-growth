@@ -1,7 +1,22 @@
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { execFile } from 'child_process';
 import { getActiveToken } from './token-manager.js';
+import { sheetsGet, sheetsUpdate } from './google-sheets.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CRM_STORE  = path.join(__dirname, 'crm-data.json');
+const CRM_SHEET_ID   = '1yK70fNR8dYbehKPLSOEv3SPSPZKp01PNgMZa11M_TKQ';
+const CRM_PAINEL_TAB = 'CRM_PAINEL';
+
+// In-memory cache for CRM data (TTL: 5 min)
+let crmCache = null;
+let crmCacheAt = 0;
+const CRM_CACHE_TTL = 5 * 60 * 1000;
 
 const app = express();
 const ACCOUNT_ID = process.env.META_ACCOUNT_ID;
@@ -155,6 +170,132 @@ app.get('/api/meta/ads', async (req, res) => {
     console.error('[ads-all error]', error);
     res.status(err.response?.status || 500).json({ error });
   }
+});
+
+// ── CRM helpers ───────────────────────────────────────────────
+const CRM_HEADERS = [
+  'rowId','leadId','conversionNum','data','hora',
+  'nome','email','celular','cidade','estado',
+  'disponibilidade','mqStatus','page','source','campaign',
+  'focoCaptacao','canalTipo','estagio',
+  'statusPipeline','motivoPerda','valor',
+];
+
+function parseCrmSheet(values) {
+  if (!values || values.length < 2) return [];
+  const [header, ...rows] = values;
+  return rows.map(row => {
+    const obj = {};
+    CRM_HEADERS.forEach((k, i) => { obj[k] = row[i] ?? ''; });
+    obj.conversionNum = parseInt(obj.conversionNum, 10) || 1;
+    return obj;
+  });
+}
+
+async function loadCrmLeads() {
+  const now = Date.now();
+  if (crmCache && now - crmCacheAt < CRM_CACHE_TTL) return crmCache;
+
+  // Try local JSON first (fastest)
+  try {
+    const raw  = fs.readFileSync(CRM_STORE, 'utf8');
+    const data = JSON.parse(raw);
+    crmCache   = data;
+    crmCacheAt = now;
+    return data;
+  } catch {}
+
+  // Fall back to Google Sheets
+  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:U`);
+  const leads = parseCrmSheet(resp.values);
+  crmCache   = { lastSync: null, leads, totalLeads: leads.length, uniqueLeads: new Set(leads.map(l => l.leadId)).size };
+  crmCacheAt = now;
+  return crmCache;
+}
+
+async function patchCrmRowInSheet(rowId, fields) {
+  // Find the row in the sheet by scanning column A
+  const resp = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:A`);
+  const col  = resp.values || [];
+  const rowIndex = col.findIndex(r => r[0] === rowId);
+  if (rowIndex < 1) return; // 0 = header, not found
+
+  const sheetRow = rowIndex + 1; // 1-indexed
+  // S=statusPipeline, T=motivoPerda, U=valor  (cols 19,20,21 = S,T,U)
+  const range  = `${CRM_PAINEL_TAB}!S${sheetRow}:U${sheetRow}`;
+  const values = [[fields.statusPipeline ?? '', fields.motivoPerda ?? '', fields.valor ?? '']];
+  await sheetsUpdate(CRM_SHEET_ID, range, values);
+}
+
+// GET /api/crm/leads
+app.get('/api/crm/leads', async (req, res) => {
+  try {
+    const data = await loadCrmLeads();
+    res.json(data);
+  } catch (err) {
+    console.error('[crm] GET error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/crm/leads/:rowId — update commercial fields
+app.patch('/api/crm/leads/:rowId', async (req, res) => {
+  const { rowId } = req.params;
+  const { statusPipeline, motivoPerda, valor } = req.body;
+
+  try {
+    // Update local JSON
+    let store;
+    try {
+      store = JSON.parse(fs.readFileSync(CRM_STORE, 'utf8'));
+    } catch {
+      return res.status(503).json({ error: 'CRM store not found. Run crm-sync first.' });
+    }
+
+    const lead = store.leads.find(l => l.rowId === rowId);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    if (statusPipeline !== undefined) lead.statusPipeline = statusPipeline;
+    if (motivoPerda    !== undefined) lead.motivoPerda    = motivoPerda;
+    if (valor          !== undefined) lead.valor          = valor;
+
+    fs.writeFileSync(CRM_STORE, JSON.stringify(store, null, 2));
+
+    // Invalidate cache
+    crmCache   = null;
+    crmCacheAt = 0;
+
+    // Update Google Sheets (fire and forget, don't block response)
+    patchCrmRowInSheet(rowId, { statusPipeline, motivoPerda, valor }).catch(e =>
+      console.error('[crm] Sheets patch error:', e.message)
+    );
+
+    res.json({ ok: true, lead });
+  } catch (err) {
+    console.error('[crm] PATCH error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crm/sync — trigger manual sync (local only)
+app.post('/api/crm/sync', (req, res) => {
+  const syncScript = path.join(__dirname, '..', '..', 'scripts', 'crm-sync.js');
+  if (!fs.existsSync(syncScript)) {
+    return res.status(404).json({ error: 'Sync script not found' });
+  }
+
+  execFile('node', [syncScript], { cwd: path.dirname(syncScript) }, (err, stdout, stderr) => {
+    // Invalidate cache after sync
+    crmCache   = null;
+    crmCacheAt = 0;
+
+    if (err) {
+      console.error('[crm] Sync error:', stderr);
+      return res.status(500).json({ error: stderr || err.message });
+    }
+    console.log('[crm] Sync output:', stdout);
+    res.json({ ok: true, output: stdout });
+  });
 });
 
 export default app;

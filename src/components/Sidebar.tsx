@@ -8,6 +8,7 @@ import {
   Filter,
   Image,
   BookOpen,
+  Database,
   type LucideProps,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -37,7 +38,6 @@ interface SoonItem {
 
 const soonItems: SoonItem[] = [
   { label: 'Leads', icon: Users },
-  { label: 'CRM', icon: FileSpreadsheet },
 ];
 
 export function Sidebar() {
@@ -101,6 +101,35 @@ export function Sidebar() {
         {soonItems.map((item) => (
           <SoonNavItem key={item.label} item={item} />
         ))}
+
+        {/* Spacer */}
+        <div className="pt-2" />
+
+        {/* CRM */}
+        <p className="text-xs font-medium text-notion-text-tertiary uppercase tracking-wider px-2 mb-2 mt-1">
+          CRM
+        </p>
+        <NavLink
+          to="/crm"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors duration-[120ms] select-none',
+              isActive
+                ? 'bg-notion-bg-tertiary text-notion-text-primary font-medium'
+                : 'text-notion-text-secondary hover:bg-notion-bg-tertiary hover:text-notion-text-primary'
+            )
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <Database
+                size={14}
+                className={cn('flex-shrink-0', isActive ? 'text-notion-primary' : 'text-notion-text-secondary')}
+              />
+              <span className="flex-1">Histórico de Leads</span>
+            </>
+          )}
+        </NavLink>
 
         {/* Spacer */}
         <div className="pt-2" />
