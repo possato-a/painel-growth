@@ -219,22 +219,48 @@ function readHistory() {
   return null;
 }
 
-// CRM leads: always read from Google Sheets CRM_PAINEL (persistent across containers)
-// In-memory cache for performance within warm invocations
+// CRM leads: Google Sheets (primary) → local file fallback
 async function loadCrmLeads() {
   const now = Date.now();
   if (crmCache && now - crmCacheAt < CRM_CACHE_TTL) return crmCache;
 
-  const resp  = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:X`);
-  const leads = parseCrmSheet(resp.values);
-  crmCache   = {
-    lastSync:    crmCache?.lastSync ?? null, // preserved from last sync call
-    leads,
-    totalLeads:  leads.length,
-    uniqueLeads: new Set(leads.map(l => l.leadId)).size,
-  };
-  crmCacheAt = now;
-  return crmCache;
+  // 1. Try Google Sheets (persistent across Vercel containers)
+  try {
+    const resp = await sheetsGet(CRM_SHEET_ID, `${CRM_PAINEL_TAB}!A:X`);
+    if (resp.values && resp.values.length > 1) {
+      const leads = parseCrmSheet(resp.values);
+      crmCache = {
+        lastSync:    crmCache?.lastSync ?? null,
+        leads,
+        totalLeads:  leads.length,
+        uniqueLeads: new Set(leads.map(l => l.leadId)).size,
+      };
+      crmCacheAt = now;
+      return crmCache;
+    }
+  } catch (e) {
+    console.error('[crm] Sheets read failed, trying local fallback:', e.message);
+  }
+
+  // 2. Fallback: local files (/tmp → deployed crm-data.json)
+  for (const p of [CRM_STORE_WRITE, CRM_STORE_READ]) {
+    try {
+      const store = JSON.parse(fs.readFileSync(p, 'utf8'));
+      const src   = store.crm || store;
+      const leads = src.leads || [];
+      const data  = {
+        lastSync:    store.lastSync ?? null,
+        leads,
+        totalLeads:  leads.length,
+        uniqueLeads: store.uniqueLeads ?? new Set(leads.map(l => l.leadId)).size,
+      };
+      crmCache   = data;
+      crmCacheAt = now;
+      return data;
+    } catch {}
+  }
+
+  throw new Error('Não foi possível carregar os leads. Verifique as credenciais do Google.');
 }
 
 async function patchCrmRowInSheet(rowId, fields, stageHistory) {
