@@ -107,10 +107,10 @@ export async function readLeadsBeHonest(sinceDate = null, untilDate = null) {
       disponibilidade: (row[7]  || '').trim(),
       mqStatus:        (row[8]  || '').trim(),
       page:            (row[9]  || '').trim(),
-      source:          (row[10] || '').trim(),
-      medium:          (row[11] || '').trim(),
+      source:          deduplicateUtm(row[10] || ''),
+      medium:          deduplicateUtm(row[11] || ''),
       campaign:        deduplicateUtm(row[12] || ''),  // utm_campaign — may be Meta campaign ID or name
-      content:         (row[13] || '').trim(),
-      term:            (row[14] || '').trim(),
+      content:         deduplicateUtm(row[13] || ''),
+      term:            deduplicateUtm(row[14] || ''),
     }));
 }
