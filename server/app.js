@@ -817,9 +817,13 @@ app.get('/api/conversoes', async (req, res) => {
     const rawLeads = await readLeadsBeHonest(sinceDate, untilDate);
 
     // ── 4. Match each lead to a leads campaign ────────────────────────────────
-    // Priority: (a) utm_campaign == campaign ID, (b) utm_campaign == campaign name
-    // (c) lead.page (strip QS) matches a campaign's declared LP URL
-    //
+    // Priority:
+    //   (a) utm_campaign == campaign ID (exact)
+    //   (b) utm_campaign == campaign name (case-insensitive exact)
+    //   (c) lead.page matches a Meta-declared LP URL (creative.link_url)
+    //   (d) UTM token overlap with campaign name (min score 3) — catches renamed campaigns
+    //       e.g. utm "[LP][CA][FUNIL OPERADOR]" → campanha "[LP][PERPETUO][FUNIL OPERADOR]"
+
     // Build reverse map: normalised LP url → Set<campaignId>
     const lpToCamp = {};
     for (const [campId, lpSet] of Object.entries(campLpSet)) {
@@ -829,12 +833,18 @@ app.get('/api/conversoes', async (req, res) => {
       }
     }
 
+    // Pre-compute token sets for all leads campaigns (for fallback d)
+    const campTokens = {};
+    for (const [campId, mc] of Object.entries(byId)) {
+      campTokens[campId] = new Set(mc.name.toLowerCase().split(/[\s[\]()\\-_,]+/).filter(Boolean));
+    }
+
     const matchedLeads = [];
     for (const lead of rawLeads) {
-      const utmVal = lead.campaign;
-      let mc = byId[utmVal] || byName[(utmVal || '').toLowerCase()];
+      const utmVal = lead.campaign || '';
+      let mc = byId[utmVal] || byName[utmVal.toLowerCase()];
 
-      // Fallback: match lead.page against Meta-declared LP URLs
+      // Fallback (c): lead.page against Meta-declared LP URLs
       if (!mc) {
         const leadLp = stripQS(lead.page);
         if (leadLp) {
@@ -842,14 +852,30 @@ app.get('/api/conversoes', async (req, res) => {
           if (candidates.length === 1) {
             mc = byId[candidates[0]];
           } else if (candidates.length > 1) {
-            // Pick campaign whose name overlaps most with the UTM string
             let best = null, bestScore = -1;
             for (const cid of candidates) {
-              const score = tokenOverlap(utmVal || '', byId[cid]?.name || '');
+              const score = tokenOverlap(utmVal, byId[cid]?.name || '');
               if (score > bestScore) { bestScore = score; best = byId[cid]; }
             }
             mc = best;
           }
+        }
+      }
+
+      // Fallback (d): UTM token overlap — for campaigns renamed after launch
+      // Requires at least 3 tokens in common AND must be the clear best match.
+      if (!mc && utmVal) {
+        const utmToks = new Set(utmVal.toLowerCase().split(/[\s[\]()\\-_,]+/).filter(Boolean));
+        let best = null, bestScore = -1, secondScore = -1;
+        for (const [campId, toks] of Object.entries(campTokens)) {
+          let n = 0;
+          for (const t of utmToks) if (toks.has(t)) n++;
+          if (n > bestScore) { secondScore = bestScore; bestScore = n; best = byId[campId]; }
+          else if (n > secondScore) secondScore = n;
+        }
+        // Only assign if score >= 3 and clearly better than the next candidate (gap >= 2)
+        if (bestScore >= 3 && (bestScore - secondScore) >= 2) {
+          mc = best;
         }
       }
 
