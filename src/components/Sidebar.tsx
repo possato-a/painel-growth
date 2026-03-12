@@ -9,6 +9,7 @@ import {
   Image,
   BookOpen,
   Database,
+  GitMerge,
   type LucideProps,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -29,6 +30,11 @@ const metaSubNav: SubNavItem[] = [
   { label: 'Por Funil', icon: Filter, to: '/meta-ads/funil' },
   { label: 'Meio de Funil', icon: Layers, to: '/meta-ads/meio-funil' },
   { label: 'Criativos', icon: Image, to: '/meta-ads/criativos' },
+  { label: 'Conversões', icon: GitMerge, to: '/meta-ads/conversoes' },
+];
+
+const googleAdsSubNav: SubNavItem[] = [
+  { label: 'Geral', icon: BarChart2, to: '/google-ads/geral' },
 ];
 
 interface SoonItem {
@@ -36,9 +42,7 @@ interface SoonItem {
   icon: LucideIcon;
 }
 
-const soonItems: SoonItem[] = [
-  { label: 'Leads', icon: Users },
-];
+const soonItems: SoonItem[] = [];
 
 export function Sidebar() {
   const location = useLocation();
@@ -97,6 +101,12 @@ export function Sidebar() {
         {/* Spacer */}
         <div className="pt-2" />
 
+        {/* Google Ads parent */}
+        <GoogleAdsNavSection />
+
+        {/* Spacer */}
+        <div className="pt-2" />
+
         {/* Soon items */}
         {soonItems.map((item) => (
           <SoonNavItem key={item.label} item={item} />
@@ -144,27 +154,7 @@ export function Sidebar() {
         <p className="text-xs font-medium text-notion-text-tertiary uppercase tracking-wider px-2 mb-2 mt-1">
           Referência
         </p>
-        <NavLink
-          to="/docs"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors duration-[120ms] select-none',
-              isActive
-                ? 'bg-notion-bg-tertiary text-notion-text-primary font-medium'
-                : 'text-notion-text-secondary hover:bg-notion-bg-tertiary hover:text-notion-text-primary'
-            )
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <BookOpen
-                size={14}
-                className={cn('flex-shrink-0', isActive ? 'text-notion-primary' : 'text-notion-text-secondary')}
-              />
-              <span className="flex-1">Documentação</span>
-            </>
-          )}
-        </NavLink>
+        <DocsNavLink />
       </nav>
 
       {/* Footer */}
@@ -196,6 +186,47 @@ function MetaSubLink({ item }: { item: SubNavItem }) {
           <span className="flex-1">{item.label}</span>
         </>
       )}
+    </NavLink>
+  );
+}
+
+function GoogleAdsNavSection() {
+  const location = useLocation();
+  const isActive = location.pathname.startsWith('/google-ads');
+  return (
+    <>
+      <div className={cn('flex items-center gap-2.5 px-2 py-1.5 rounded select-none transition-colors duration-[120ms]', isActive ? 'bg-notion-bg-tertiary text-notion-text-primary' : 'text-notion-text-secondary hover:bg-notion-bg-tertiary hover:text-notion-text-primary')}>
+        <BarChart2 size={14} className={cn('flex-shrink-0', isActive ? 'text-notion-primary' : 'text-notion-text-secondary')} />
+        <span className="text-sm font-medium flex-1">Google Ads</span>
+        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-notion-primary flex-shrink-0" />}
+      </div>
+      <div className="pl-4 space-y-0.5 mt-0.5">
+        {googleAdsSubNav.map((item) => (
+          <MetaSubLink key={item.to} item={item} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function DocsNavLink() {
+  const location = useLocation();
+  const isActive = location.pathname.startsWith('/docs');
+  return (
+    <NavLink
+      to="/docs/overview"
+      className={cn(
+        'flex items-center gap-2.5 px-2 py-1.5 rounded text-sm transition-colors duration-[120ms] select-none',
+        isActive
+          ? 'bg-notion-bg-tertiary text-notion-text-primary font-medium'
+          : 'text-notion-text-secondary hover:bg-notion-bg-tertiary hover:text-notion-text-primary'
+      )}
+    >
+      <BookOpen
+        size={14}
+        className={cn('flex-shrink-0', isActive ? 'text-notion-primary' : 'text-notion-text-secondary')}
+      />
+      <span className="flex-1">Documentação</span>
     </NavLink>
   );
 }
