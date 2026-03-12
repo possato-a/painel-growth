@@ -873,8 +873,8 @@ app.get('/api/conversoes', async (req, res) => {
           if (n > bestScore) { secondScore = bestScore; bestScore = n; best = byId[campId]; }
           else if (n > secondScore) secondScore = n;
         }
-        // Only assign if score >= 3 and clearly better than the next candidate (gap >= 2)
-        if (bestScore >= 3 && (bestScore - secondScore) >= 2) {
+        // Only assign if score >= 3 and better than the next candidate (gap >= 1)
+        if (bestScore >= 3 && (bestScore - secondScore) >= 1) {
           mc = best;
         }
       }
