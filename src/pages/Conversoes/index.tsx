@@ -127,8 +127,11 @@ function PageTable({
             <TH>Página</TH>
             <TH>Leads</TH>
             <TH>% do total</TH>
-            <TH>Invest. estimado</TH>
-            <TH>CPL da página</TH>
+            <TH>Investimento</TH>
+            <TH>Cliques</TH>
+            <TH>Viz. Página</TH>
+            <TH>Abertura LP</TH>
+            <TH>CPL</TH>
             <TH>Conv. Rate</TH>
           </tr>
         </thead>
@@ -168,6 +171,15 @@ function PageTable({
                   <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
                     {row.spend > 0 ? fmtCurrency(row.spend) : <span className="text-notion-text-tertiary">—</span>}
                   </td>
+                  <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
+                    {row.clicks > 0 ? fmtNumber(Math.round(row.clicks)) : <span className="text-notion-text-tertiary">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
+                    {row.landing_page_views > 0 ? fmtNumber(Math.round(row.landing_page_views)) : <span className="text-notion-text-tertiary">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
+                    {row.openRate != null ? fmtPct(row.openRate) : <span className="text-notion-text-tertiary">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     {row.cpl != null
                       ? <span className="text-[13px] font-bold text-notion-text-primary">{fmtCurrency(row.cpl)}</span>
@@ -182,7 +194,7 @@ function PageTable({
 
                 {isExp && (
                   <tr key={`${key}_detail`} className="bg-notion-bg-secondary border-b border-notion-border">
-                    <td colSpan={6} className="px-8 py-3">
+                    <td colSpan={9} className="px-8 py-3">
                       <div className="flex items-start gap-8">
                         <div>
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-notion-text-tertiary mb-1.5">
@@ -244,6 +256,8 @@ function CampaignTable({ rows, loading }: { rows: ConvCampaign[]; loading: boole
               <TH>Investimento</TH>
               <TH>CPL</TH>
               <TH>Cliques</TH>
+              <TH>Viz. Página</TH>
+              <TH>Abertura LP</TH>
               <TH>Conv. Rate</TH>
               <TH>CTR</TH>
             </tr>
@@ -275,6 +289,12 @@ function CampaignTable({ rows, loading }: { rows: ConvCampaign[]; loading: boole
                 </td>
                 <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
                   {row.clicks > 0 ? fmtNumber(row.clicks) : '—'}
+                </td>
+                <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
+                  {row.landing_page_views > 0 ? fmtNumber(row.landing_page_views) : '—'}
+                </td>
+                <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
+                  {row.openRate != null ? fmtPct(row.openRate) : '—'}
                 </td>
                 <td className="px-4 py-3 text-[13px] text-notion-text-secondary">
                   {row.convRate != null ? fmtPct(row.convRate) : '—'}
@@ -356,7 +376,7 @@ export function ConversoesPage() {
             <KpiCard
               label="Taxa de Conversão"
               value={totals?.convRate != null ? fmtPct(totals.convRate) : '—'}
-              sub="Leads ÷ Cliques no Meta"
+              sub="Leads ÷ Visualiz. de página"
               icon={MousePointer}
               loading={isLoading}
             />
@@ -369,9 +389,11 @@ export function ConversoesPage() {
             <Info size={13} className="text-notion-text-tertiary shrink-0 mt-0.5" />
             <span>
               Somente campanhas com objetivo <strong className="text-notion-text-primary">Geração de Leads</strong> no Meta são consideradas.
-              Leads contados da planilha <strong className="text-notion-text-primary">Leads Be Honest</strong> — os leads são vinculados às campanhas pelo campo{' '}
-              <code className="font-mono text-[11px] bg-notion-bg-tertiary px-1 rounded">utm_campaign</code> (ID ou nome exato da campanha Meta).
-              Páginas listadas são somente as que receberam tráfego pago neste período.
+              Leads contados da planilha <strong className="text-notion-text-primary">Leads Be Honest</strong> — vinculados às campanhas pelo campo{' '}
+              <code className="font-mono text-[11px] bg-notion-bg-tertiary px-1 rounded">utm_campaign</code>.{' '}
+              <strong className="text-notion-text-primary">Abertura LP</strong> = Viz. de página ÷ Cliques (pessoas que clicaram e carregaram a página).{' '}
+              <strong className="text-notion-text-primary">Conv. Rate</strong> = Leads ÷ Viz. de página.{' '}
+              Invest., Cliques e Viz. de página por LP são <strong className="text-notion-text-primary">exatos</strong> — extraídos a nível de anúncio cruzando o URL de destino de cada criativo (via <code className="font-mono text-[11px] bg-notion-bg-tertiary px-1 rounded">object_story_spec</code>).
               {(data.metaNoLeads?.length ?? 0) > 0 && (
                 <span className="text-amber-600">
                   {' '}{data.metaNoLeads.length} campanha(s) de leads sem leads vinculados na planilha no período.

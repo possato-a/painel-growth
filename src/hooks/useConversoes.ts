@@ -8,8 +8,10 @@ export interface ConvPage {
   campaigns: string[];   // Meta campaign IDs that drove traffic here
   spend: number;
   clicks: number;
+  landing_page_views: number;
   cpl: number | null;
-  convRate: number | null;
+  openRate: number | null;   // landing_page_views / clicks
+  convRate: number | null;   // leads / landing_page_views
 }
 
 export interface ConvCampaign {
@@ -20,10 +22,12 @@ export interface ConvCampaign {
   clicks: number;
   impressions: number;
   ctr: number;
+  landing_page_views: number;
   leads: number;
   lps: string[];          // LP URLs declared in Meta ad creatives
   cpl: number | null;
-  convRate: number | null;
+  openRate: number | null;   // landing_page_views / clicks
+  convRate: number | null;   // leads / landing_page_views
 }
 
 export interface MetaNoLeads {
@@ -45,7 +49,9 @@ export interface ConversoesData {
     leads: number;
     spend: number;
     clicks: number;
+    landing_page_views: number;
     cpl: number | null;
+    openRate: number | null;
     convRate: number | null;
   };
   byPage: ConvPage[];
