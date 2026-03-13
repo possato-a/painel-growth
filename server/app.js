@@ -597,6 +597,27 @@ app.patch('/api/crm/leads/:rowId', async (req, res) => {
   }
 });
 
+// GET /api/crm/cron-sync — chamado automaticamente pelo cron do Vercel (a cada hora)
+app.get('/api/crm/cron-sync', async (req, res) => {
+  try {
+    const existing = crmCache?.leads || [];
+    const store = await runSync(existing);
+    writeHistory(store);
+    crmCache = {
+      lastSync:    store.lastSync,
+      leads:       store.crm.leads,
+      totalLeads:  store.crm.totalLeads,
+      uniqueLeads: store.crm.uniqueLeads,
+    };
+    crmCacheAt = Date.now();
+    console.log(`[cron-sync] Concluído: ${store.crm.totalLeads} leads`);
+    res.json({ ok: true, totalLeads: store.crm.totalLeads, lastSync: store.lastSync });
+  } catch (err) {
+    console.error('[cron-sync] Erro:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crm/sync — trigger manual sync (runs inline, works on Vercel)
 app.post('/api/crm/sync', async (req, res) => {
   try {
@@ -659,14 +680,14 @@ function convPresetToRange(preset) {
 function convPageLabel(page) {
   if (!page || page.startsWith('{')) return 'Forms Nativo';
   const p = page.toLowerCase();
-  if (p.includes('simulador-financeiro'))  return 'Simulador Financeiro';
-  if (p.includes('/comunidade'))           return 'Comunidade';
-  if (p === '/')                           return 'Webinar';
-  if (p.includes('operacao-behonest'))     return 'Operação Be Honest';
-  if (p.includes('aulao-grupo'))           return 'Aulão Grupo';
-  if (p.includes('google'))               return 'LP Google';
+  if (p.includes('simulador-financeiro'))                                        return 'Simulador Financeiro';
+  if (p.includes('/comunidade'))                                                 return 'Comunidade';
+  if (p === '/' || /^https?:\/\/lp\.behonest\.com\.br(\/webinar)?$/.test(p))   return 'Webinar';
   if (p.includes('fazer-negocio') || p.includes('negocio-operador') || p.includes('negocio-escalavel') || p.includes('negocio-geol'))
-    return 'LP Franquia';
+                                                                                 return 'LP Franquia';
+  if (p.includes('operacao-behonest'))                                           return 'Operação Be Honest';
+  if (p.includes('aulao-grupo'))                                                 return 'Aulão Grupo';
+  if (p.includes('google'))                                                      return 'LP Google';
   return page.replace(/https?:\/\/[^/]+/, '').replace(/\/$/, '') || page;
 }
 
@@ -725,6 +746,23 @@ function stripQS(url) {
   return url.split('?')[0].replace(/\/$/, '');
 }
 
+// Normalises a URL to a canonical LP key, merging variants of the same page.
+// Returns '' for URLs that should be discarded (placeholder/test LPs).
+// Must be called instead of stripQS whenever building LP keys used as map/grouping keys.
+function normalizeLp(url) {
+  if (!url) return '';
+  const s = stripQS(url);
+  const l = s.toLowerCase();
+  // Discard placeholder LPs that are not yet live
+  if (/lp\.behonest\.com\.br\/meta/.test(l))                                      return '';
+  if (l.includes('simulador-financeiro'))                                          return 'https://lp.behonest.com.br/simulador-financeiro';
+  if (l.includes('/comunidade'))                                                   return 'https://lp.behonest.com.br/comunidade';
+  if (/fazer-negocio|negocio-operador|negocio-escalavel|negocio-geol/.test(l))    return 'https://behonestbrasil.com.br/fazer-negocio-operador';
+  // Root LP (lp.behonest.com.br with no path, or bare "/") = Webinar
+  if (s === '/' || /^https?:\/\/lp\.behonest\.com\.br(\/webinar)?$/.test(s))     return 'https://lp.behonest.com.br';
+  return s;
+}
+
 /**
  * Token-overlap score between two strings (used to disambiguate when multiple
  * campaigns share the same LP URL). Higher = better match.
@@ -756,10 +794,16 @@ app.get('/api/conversoes', async (req, res) => {
     const metaResp = await axios.get(metaUrl(`/${ACCOUNT_ID}/campaigns`), {
       params: {
         ...tokenParam(),
-        fields: `id,name,objective,status,effective_status,${insightsField(req, INSIGHT_FIELDS)}`,
+        fields: `id,name,objective,status,effective_status,${insightsField(req, `${INSIGHT_FIELDS},actions`)}`,
         limit: 200,
       },
     });
+
+    // Helper: extrai landing_page_view do array actions da Meta
+    const getLpv = (ins) => {
+      const a = (ins.actions || []).find(x => x.action_type === 'landing_page_view');
+      return a ? parseInt(a.value || 0) : 0;
+    };
 
     const byId   = {};   // campaignId (string)   → meta campaign obj
     const byName = {};   // lc(campaign name)      → meta campaign obj
@@ -767,16 +811,17 @@ app.get('/api/conversoes', async (req, res) => {
       if (!LEADS_OBJECTIVES.has(c.objective)) continue;
       const ins = c.insights?.data?.[0] || {};
       const mc = {
-        id:          c.id,
-        name:        c.name,
-        status:      c.effective_status,
-        spend:       parseFloat(ins.spend       || 0),
-        clicks:      parseInt(ins.clicks        || 0),
-        impressions: parseInt(ins.impressions   || 0),
-        ctr:         parseFloat(ins.ctr         || 0),
-        cpc:         parseFloat(ins.cpc         || 0),
-        cpm:         parseFloat(ins.cpm         || 0),
-        lps:         [],   // filled in step 2
+        id:                 c.id,
+        name:               c.name,
+        status:             c.effective_status,
+        spend:              parseFloat(ins.spend       || 0),
+        clicks:             parseInt(ins.clicks        || 0),
+        impressions:        parseInt(ins.impressions   || 0),
+        ctr:                parseFloat(ins.ctr         || 0),
+        cpc:                parseFloat(ins.cpc         || 0),
+        cpm:                parseFloat(ins.cpm         || 0),
+        landing_page_views: getLpv(ins),
+        lps:                [],   // filled in step 2
       };
       byId[c.id]                = mc;
       byName[c.name.toLowerCase()] = mc;
@@ -784,33 +829,64 @@ app.get('/api/conversoes', async (req, res) => {
 
     const leadsCampaignIds = new Set(Object.keys(byId));
 
-    // ── 2. Get LP URLs per campaign directly from Meta ads creatives ──────────
-    // Fetch all ads at account level; filter to leads campaigns; extract link_url.
-    // We only care about the creative.link_url field (destination LP).
+    // ── 2. Get LP URLs per ad from creatives (object_story_spec) ─────────────
+    // With pages_read_engagement + pages_read_user_content we can read
+    // object_story_spec, which returns the destination URL for boosted-post
+    // and video ad formats that don't expose creative.link_url.
     const adsResp = await axios.get(metaUrl(`/${ACCOUNT_ID}/ads`), {
       params: {
         ...tokenParam(),
-        fields: 'campaign_id,creative{link_url}',
+        fields: 'id,campaign_id,creative{link_url,object_story_spec{link_data{link},video_data{call_to_action{value{link}}}}}',
         limit: 500,
       },
     });
 
+    const adIdToLp  = {};  // adId → normalised LP URL
+    const adIdToCamp = {}; // adId → campaignId
     const campLpSet = {};  // campaignId → Set<normalised LP url>
     for (const ad of (adsResp.data.data || [])) {
       const campId = ad.campaign_id;
       if (!leadsCampaignIds.has(campId)) continue;
-      const raw = ad.creative?.link_url || '';
-      if (!raw) continue;
-      // Exclude Facebook/Instagram own-property URLs (instant form confirmation, etc.)
-      if (/facebook\.com|instagram\.com|fb\.me/i.test(raw)) continue;
-      const normalised = stripQS(raw);
-      if (!normalised) continue;
+      adIdToCamp[ad.id] = campId;
+      const cr  = ad.creative || {};
+      const oss = cr.object_story_spec || {};
+      const raw = cr.link_url
+        || oss.link_data?.link
+        || oss.video_data?.call_to_action?.value?.link
+        || '';
+      if (!raw || /facebook\.com|instagram\.com|fb\.me/i.test(raw)) continue;
+      const lp = normalizeLp(raw);
+      if (!lp) continue;
+      adIdToLp[ad.id] = lp;
       if (!campLpSet[campId]) campLpSet[campId] = new Set();
-      campLpSet[campId].add(normalised);
+      campLpSet[campId].add(lp);
     }
     // Attach LP list to each campaign object
     for (const [campId, lpSet] of Object.entries(campLpSet)) {
       if (byId[campId]) byId[campId].lps = [...lpSet];
+    }
+
+    // ── 2b. Ad-level insights — exact spend/clicks/lpv per ad_id ─────────────
+    const adInsightsResp = await axios.get(metaUrl(`/${ACCOUNT_ID}/insights`), {
+      params: {
+        ...tokenParam(),
+        ...accountDateParams(req),
+        level: 'ad',
+        fields: 'ad_id,campaign_id,spend,clicks,actions',
+        limit: 500,
+      },
+    });
+
+    const adMetrics = {};  // adId → { spend, clicks, lpv }
+    for (const row of (adInsightsResp.data.data || [])) {
+      const adId = row.ad_id;
+      if (!adId) continue;
+      const lpvAction = (row.actions || []).find(x => x.action_type === 'landing_page_view');
+      adMetrics[adId] = {
+        spend:  parseFloat(row.spend  || 0),
+        clicks: parseInt(row.clicks   || 0),
+        lpv:    lpvAction ? parseInt(lpvAction.value || 0) : 0,
+      };
     }
 
     // ── 3. Read leads DIRECTLY from Leads Be Honest sheet ────────────────────
@@ -846,7 +922,7 @@ app.get('/api/conversoes', async (req, res) => {
 
       // Fallback (c): lead.page against Meta-declared LP URLs
       if (!mc) {
-        const leadLp = stripQS(lead.page);
+        const leadLp = normalizeLp(lead.page);
         if (leadLp) {
           const candidates = [...(lpToCamp[leadLp] || [])];
           if (candidates.length === 1) {
@@ -895,109 +971,89 @@ app.get('/api/conversoes', async (req, res) => {
         };
       }
       campMap[id].leads++;
-      const pg = stripQS(lead.page);
+      const pg = normalizeLp(lead.page);
       if (pg) campMap[id].pagesFromLeads.add(pg);
     }
 
     const campList = Object.values(campMap).map(c => ({
-      metaId:      c.id,
-      metaName:    c.name,
-      metaStatus:  c.status,
-      spend:       c.spend,
-      clicks:      c.clicks,
-      impressions: c.impressions,
-      ctr:         c.ctr,
-      leads:       c.leads,
+      metaId:            c.id,
+      metaName:          c.name,
+      metaStatus:        c.status,
+      spend:             c.spend,
+      clicks:            c.clicks,
+      impressions:       c.impressions,
+      ctr:               c.ctr,
+      landing_page_views: c.landing_page_views,
+      leads:             c.leads,
       // LPs: union of what Meta reports (from creatives) + what leads' page field says
-      lps:         [...new Set([...c.lps, ...c.pagesFromLeads])],
-      cpl:         c.spend > 0 && c.leads > 0 ? c.spend / c.leads : null,
-      convRate:    c.clicks > 0 ? (c.leads / c.clicks) * 100 : null,
+      lps:               [...new Set([...c.lps, ...c.pagesFromLeads])],
+      cpl:               c.spend > 0 && c.leads > 0 ? c.spend / c.leads : null,
+      openRate:          c.clicks > 0 ? (c.landing_page_views / c.clicks) * 100 : null,
+      convRate:          c.landing_page_views > 0 ? (c.leads / c.landing_page_views) * 100 : null,
     })).sort((a, b) => b.leads - a.leads);
 
-    // ── 6. Group by LP — only pages that received paid traffic ───────────────
-    // The LP for a lead is stripQS(lead.page).
-    // We augment: for campaigns that have Meta-declared LPs (from step 2) but
-    // no leads yet, we still surface them in the page list with 0 leads and
-    // the campaign's spend proportionally unallocated.
+    // ── 6. Group leads by LP ──────────────────────────────────────────────────
+    // Only pages that actually received leads are created here.
+    // Metrics are attributed in step 7.
     const pageMap = {};
 
-    // Seed with all Meta-declared LPs (so they appear even with 0 leads)
-    for (const mc of Object.values(byId)) {
-      for (const lp of mc.lps) {
-        if (!pageMap[lp]) {
-          pageMap[lp] = {
-            page:      lp,
-            label:     convPageLabel(lp),
-            leads:     0,
-            campaigns: new Set(),
-            spend:     0,
-            clicks:    0,
-          };
-        }
-        pageMap[lp].campaigns.add(mc.id);
-      }
-    }
+    // campToPages: campaignId → Set<normalised LP key>
+    // Used in step 7 so that ad metrics only flow to pages where the campaign
+    // actually generated leads (prevents stale/changed creatives from polluting
+    // the wrong page with historical spend).
+    const campToPages = {};
 
-    // Count leads into page map
     for (const lead of matchedLeads) {
-      const pKey = stripQS(lead.page) || '__sem_pagina__';
+      const pKey = normalizeLp(lead.page) || '__sem_pagina__';
       if (!pageMap[pKey]) {
         pageMap[pKey] = {
-          page:      pKey === '__sem_pagina__' ? '' : pKey,
-          label:     convPageLabel(lead.page),
-          leads:     0,
-          campaigns: new Set(),
-          spend:     0,
-          clicks:    0,
+          page:               pKey === '__sem_pagina__' ? '' : pKey,
+          label:              convPageLabel(pKey),
+          leads:              0,
+          campaigns:          new Set(),
+          spend:              0,
+          clicks:             0,
+          landing_page_views: 0,
         };
       }
       pageMap[pKey].leads++;
       pageMap[pKey].campaigns.add(lead._mc.id);
+
+      const campId = lead._mc.id;
+      if (!campToPages[campId]) campToPages[campId] = new Set();
+      campToPages[campId].add(pKey);
     }
 
-    // ── 7. Allocate campaign spend/clicks to pages proportionally ────────────
-    for (const camp of campList) {
-      if (!camp.spend && !camp.clicks) continue;
-      // Count leads per page for this campaign
-      const pageCounts = {};
-      let total = 0;
-      for (const lead of matchedLeads) {
-        if (lead._mc.id !== camp.metaId) continue;
-        const pg = stripQS(lead.page) || '__sem_pagina__';
-        pageCounts[pg] = (pageCounts[pg] || 0) + 1;
-        total++;
-      }
-      if (!total) {
-        // Campaign has no matched leads yet but has declared LPs → split evenly
-        for (const lp of camp.lps) {
-          const r = 1 / camp.lps.length;
-          if (pageMap[lp]) {
-            pageMap[lp].spend  += camp.spend  * r;
-            pageMap[lp].clicks += camp.clicks * r;
-          }
-        }
-        continue;
-      }
-      for (const [pKey, cnt] of Object.entries(pageCounts)) {
-        const r = cnt / total;
-        if (pageMap[pKey]) {
-          pageMap[pKey].spend  += camp.spend  * r;
-          pageMap[pKey].clicks += camp.clicks * r;
-        }
-      }
+    // ── 7. Assign exact ad-level metrics to pages ─────────────────────────────
+    // For each ad with a known LP URL, add its spend/clicks/lpv to that page —
+    // but ONLY if the ad's campaign actually has leads on that page.
+    // This prevents creatives that were recently changed (e.g. to /meta) from
+    // attributing historical spend to the wrong page.
+    for (const [adId, lp] of Object.entries(adIdToLp)) {
+      const m = adMetrics[adId];
+      if (!m) continue;
+      const campId = adIdToCamp[adId];
+      // Gate: campaign must have leads on this exact page
+      if (!campToPages[campId]?.has(lp)) continue;
+      if (!pageMap[lp]) continue;  // safety — page must exist from leads
+      pageMap[lp].spend              += m.spend;
+      pageMap[lp].clicks             += m.clicks;
+      pageMap[lp].landing_page_views += m.lpv;
     }
 
     const pageList = Object.values(pageMap)
-      .filter(p => p.page !== '__sem_pagina__' || p.leads > 0)
+      .filter(p => p.leads > 0)
       .map(p => ({
         page:      p.page,
         label:     p.label,
         leads:     p.leads,
         campaigns: [...p.campaigns],
-        spend:     p.spend,
-        clicks:    p.clicks,
-        cpl:       p.spend > 0 && p.leads > 0 ? p.spend / p.leads : null,
-        convRate:  p.clicks > 0 ? (p.leads / p.clicks) * 100 : null,
+        spend:             p.spend,
+        clicks:            p.clicks,
+        landing_page_views: p.landing_page_views,
+        cpl:               p.spend > 0 && p.leads > 0 ? p.spend / p.leads : null,
+        openRate:          p.clicks > 0 ? (p.landing_page_views / p.clicks) * 100 : null,
+        convRate:          p.landing_page_views > 0 ? (p.leads / p.landing_page_views) * 100 : null,
       }))
       .sort((a, b) => b.leads - a.leads);
 
@@ -1011,15 +1067,18 @@ app.get('/api/conversoes', async (req, res) => {
     const totalLeads  = matchedLeads.length;
     const totalSpend  = campList.reduce((s, c) => s + c.spend, 0);
     const totalClicks = campList.reduce((s, c) => s + c.clicks, 0);
+    const totalLpv    = campList.reduce((s, c) => s + c.landing_page_views, 0);
 
     res.json({
       period:      { since: sinceDate, until: untilDate },
       totals: {
-        leads:    totalLeads,
-        spend:    totalSpend,
-        clicks:   totalClicks,
-        cpl:      totalSpend > 0 && totalLeads > 0 ? totalSpend / totalLeads : null,
-        convRate: totalClicks > 0 ? (totalLeads / totalClicks) * 100 : null,
+        leads:             totalLeads,
+        spend:             totalSpend,
+        clicks:            totalClicks,
+        landing_page_views: totalLpv,
+        cpl:               totalSpend > 0 && totalLeads > 0 ? totalSpend / totalLeads : null,
+        openRate:          totalClicks > 0 ? (totalLpv / totalClicks) * 100 : null,
+        convRate:          totalLpv > 0 ? (totalLeads / totalLpv) * 100 : null,
       },
       byPage:      pageList,
       byCampaign:  campList,
