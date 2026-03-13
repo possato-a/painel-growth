@@ -53,13 +53,20 @@ function deduplicateUtm(val) {
 const LEADS_SHEET_ID = '1f-dvv2zLKbey__rug-T5gJn-NkNmf7EWcQv3Tb9IvM8';
 const LEADS_TAB      = 'Leads Franquia';
 
-const EXCLUDED_NAMES = ['francisco possato', 'carlos fernandes'];
+const EXCLUDED_NAME_FRAGMENTS = [
+  'francisco possato', 'carlos fernandes', 'joão gabriel dos santos dos anjos',
+  'behonest', 'be honest',
+];
+const EXCLUDED_EMAIL_FRAGMENTS = [
+  'teste', 'test', '@test', 'behonest', 'behonestbrasil',
+];
 
 function isExcluded(nome, email) {
   const n = (nome  || '').toLowerCase();
   const e = (email || '').toLowerCase();
-  if (EXCLUDED_NAMES.some(x => n.includes(x))) return true;
-  if (['teste', 'test', '@test'].some(x => e.includes(x) || n.includes(x))) return true;
+  if (EXCLUDED_NAME_FRAGMENTS.some(x => n.includes(x))) return true;
+  if (EXCLUDED_EMAIL_FRAGMENTS.some(x => e.includes(x))) return true;
+  if (['teste', 'test'].some(x => n.includes(x))) return true;
   return false;
 }
 
