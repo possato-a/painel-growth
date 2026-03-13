@@ -242,25 +242,39 @@ function leadToBaseCrmRow(lead, seqId) {
 }
 
 async function appendMissingToBaseCrm(token, crmLeads, existingCrmRows) {
-  let maxDateIso = '0000-00-00';
-  let lastSeqId  = 0;
+  // Monta chave de presença: "email__DD/MM" para cada linha já existente no BASE_CRM.
+  // Usamos DD/MM porque é o que está gravado na coluna B (formatDateShort).
+  // Também aceitamos chave só por email como fallback para leads sem data exata.
+  let lastSeqId    = 0;
   let dataRowCount = 0;
+  const existingKeys = new Set();  // "email__DD/MM"
+  const existingEmails = new Set();
+
   for (const row of existingCrmRows) {
     if (!row || !row.some(c => c)) continue;
     dataRowCount++;
-    const iso = parseDateShort((row[1] || '').trim());
-    if (iso && iso > maxDateIso) maxDateIso = iso;
     const id = parseInt(row[0], 10);
     if (!isNaN(id) && id > lastSeqId) lastSeqId = id;
+    const email = (row[4] || '').toLowerCase().trim();
+    const dateCur  = (row[1] || '').trim();  // "DD/MM" or "DD/MM/YYYY"
+    const dateKey  = dateCur.slice(0, 5);    // always "DD/MM"
+    if (email) {
+      existingKeys.add(`${email}__${dateKey}`);
+      existingEmails.add(email);
+    }
   }
-  if (maxDateIso === '0000-00-00') {
-    console.log('[crm-sync] BASE_CRM sem datas reconhecidas — pulando append');
-    return;
-  }
-  console.log(`[crm-sync] BASE_CRM: última data=${maxDateIso}, último ID=${lastSeqId}, ${dataRowCount} linhas`);
 
+  console.log(`[crm-sync] BASE_CRM: ${dataRowCount} linhas existentes, último ID=${lastSeqId}`);
+
+  // Compara com os leads da Leads Be Honest (via crmLeads que já passou pelos filtros)
+  // Um lead está faltando se o par email+DD/MM não existe no BASE_CRM
   const missing = crmLeads
-    .filter(lead => parseDate(lead.data) > maxDateIso)
+    .filter(lead => {
+      const email   = (lead.email || '').toLowerCase().trim();
+      const dateKey = formatDateShort(lead.data);  // "DD/MM"
+      if (!email) return false;
+      return !existingKeys.has(`${email}__${dateKey}`);
+    })
     .sort((a, b) => {
       const da = parseDate(a.data) + (a.hora || '00:00');
       const db = parseDate(b.data) + (b.hora || '00:00');
@@ -271,9 +285,15 @@ async function appendMissingToBaseCrm(token, crmLeads, existingCrmRows) {
     console.log('[crm-sync] BASE_CRM já está atualizado — nenhum lead faltante');
     return;
   }
+
+  console.log(`[crm-sync] ${missing.length} leads faltando no BASE_CRM — adicionando...`);
   const nextRow = dataRowCount + 2;
   const endRow  = nextRow + missing.length - 1;
-  await sheetsPut(token, CRM_SHEET_ID, `BASE_CRM!A${nextRow}:T${endRow}`, missing.map((l, i) => leadToBaseCrmRow(l, lastSeqId + i + 1)));
+  await sheetsPut(
+    token, CRM_SHEET_ID,
+    `BASE_CRM!A${nextRow}:T${endRow}`,
+    missing.map((l, i) => leadToBaseCrmRow(l, lastSeqId + i + 1))
+  );
   console.log(`[crm-sync] ${missing.length} leads adicionados ao BASE_CRM (linhas ${nextRow}–${endRow})`);
 }
 
